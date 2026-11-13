@@ -1,0 +1,14 @@
+[package]
+name = "rshot-storage"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rshot-core = { path = "../rshot-core" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "6.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+log = "0.4"

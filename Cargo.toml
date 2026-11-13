@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    ".",
+    "crates/rshot-core",
+    "crates/rshot-storage",
+    "crates/rshot-overlay",
+    "crates/rshot-pin",
+]
+resolver = "2"
+
+[package]
+name = "rshot"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rshot-core = { path = "crates/rshot-core" }
+rshot-storage = { path = "crates/rshot-storage" }
+rshot-overlay = { path = "crates/rshot-overlay" }
+rshot-pin = { path = "crates/rshot-pin" }
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+env_logger = "0.11"
+log = "0.4"

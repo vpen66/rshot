@@ -1,0 +1,11 @@
+[package]
+name = "rshot-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+xcap = "0.9"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+arboard = "3.4"
+thiserror = "2.0"
+log = "0.4"
