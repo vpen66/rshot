@@ -4,7 +4,6 @@ use crate::annotation::{
 use crate::magnifier::Magnifier;
 use crate::state::{DragState, ResizeHandle, Selection};
 use crate::toolbar::{Toolbar, ToolbarAction};
-use crate::PinRequest;
 use eframe::egui::{
     self, Align2, Color32, CursorIcon, FontId, Key, Modifiers, Pos2, Rect, Stroke, StrokeKind,
     Vec2,
@@ -13,14 +12,13 @@ use image::RgbaImage;
 use log::{error, info};
 use rshot_core::{ClipboardService, ScreenCapture};
 use rshot_storage::{OutputFormat, StorageService};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub struct OverlayApp {
     captured_image: Arc<RgbaImage>,
     texture: Option<egui::TextureHandle>,
     scale_factor: f32,
     monitor_origin: (f32, f32),
-    pin_slot: Arc<Mutex<Option<PinRequest>>>,
     selection: Option<Selection>,
     drag_state: DragState,
     hovered_handle: Option<ResizeHandle>,
@@ -43,14 +41,12 @@ impl OverlayApp {
         captured_image: RgbaImage,
         scale_factor: f32,
         monitor_origin: (f32, f32),
-        pin_slot: Arc<Mutex<Option<PinRequest>>>,
     ) -> Self {
         Self {
             captured_image: Arc::new(captured_image),
             texture: None,
             scale_factor,
             monitor_origin,
-            pin_slot,
             selection: None,
             drag_state: DragState::Idle,
             hovered_handle: None,
@@ -91,7 +87,7 @@ impl OverlayApp {
     }
 
     /// Handles copying cropped selection with baked annotations to clipboard.
-    fn handle_copy(&self, ctx: &egui::Context) {
+    fn handle_copy(&self) {
         if let Some(cropped) = self.get_cropped_selection() {
             if let Err(e) = ClipboardService::copy_image(&cropped) {
                 error!("Failed to copy to clipboard: {e}");
@@ -99,37 +95,54 @@ impl OverlayApp {
                 info!("Screenshot (with annotations) successfully copied to clipboard");
             }
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        std::process::exit(0);
     }
 
     /// Handles saving cropped selection with baked annotations to disk.
-    fn handle_save(&self, ctx: &egui::Context) {
+    fn handle_save(&self) {
         if let Some(cropped) = self.get_cropped_selection() {
             match StorageService::save_to_default_dir(&cropped, OutputFormat::Png) {
                 Ok(path) => info!("Screenshot (with annotations) successfully saved to: {}", path.display()),
                 Err(e) => error!("Failed to save screenshot: {e}"),
             }
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        std::process::exit(0);
     }
 
-    /// Handles pinning the cropped selection as a floating always-on-top window.
-    fn handle_pin(&mut self, ctx: &egui::Context) {
-        if let Some(cropped) = self.get_cropped_selection() {
-            if let Some(sel) = self.selection {
-                let global_x = self.monitor_origin.0 + sel.min.x;
-                let global_y = self.monitor_origin.1 + sel.min.y;
-
-                *self.pin_slot.lock().unwrap() = Some(PinRequest {
-                    image: cropped,
-                    x: global_x,
-                    y: global_y,
-                    scale_factor: self.scale_factor,
+    /// Hands the cropped selection to a fresh pin process and exits.
+    /// macOS allows only one winit event loop per process, so the pin window
+    /// must run in a child process; ViewportCommand::Close also never unwinds
+    /// the macOS run loop, hence process::exit on every exit path.
+    fn handle_pin(&self) {
+        if let (Some(cropped), Some(sel)) = (self.get_cropped_selection(), self.selection) {
+            let global_x = self.monitor_origin.0 + sel.min.x;
+            let global_y = self.monitor_origin.1 + sel.min.y;
+            let path = std::env::temp_dir().join(format!("rshot_pin_{}.png", std::process::id()));
+            if let Err(e) = cropped.save(&path) {
+                error!("Failed to write pin handoff image: {e}");
+            } else {
+                let result = std::env::current_exe().and_then(|exe| {
+                    std::process::Command::new(exe)
+                        .arg("--pin-image")
+                        .arg(&path)
+                        .arg("--pin-x")
+                        .arg(global_x.to_string())
+                        .arg("--pin-y")
+                        .arg(global_y.to_string())
+                        .arg("--pin-scale")
+                        .arg(self.scale_factor.to_string())
+                        .spawn()
                 });
-                info!("Pinning screenshot at ({}, {})", global_x, global_y);
+                match result {
+                    Ok(_) => info!("Pinning screenshot at ({}, {})", global_x, global_y),
+                    Err(e) => {
+                        error!("Failed to launch pin process: {e}");
+                        let _ = std::fs::remove_file(&path);
+                    }
+                }
             }
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        std::process::exit(0);
     }
 
     fn commit_active_text(&mut self) {
@@ -181,9 +194,10 @@ impl eframe::App for OverlayApp {
                 let pointer_pos = ctx.input(|i| i.pointer.interact_pos());
                 let pointer_down = ctx.input(|i| i.pointer.primary_down());
                 let double_clicked = ctx.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
+                let pointer_over_widget = ctx.wants_pointer_input();
 
-                if double_clicked && self.selection.is_some() && self.current_tool == ToolType::Select {
-                    self.handle_copy(ctx);
+                if double_clicked && !pointer_over_widget && self.selection.is_some() && self.current_tool == ToolType::Select {
+                    self.handle_copy();
                     return;
                 }
 
@@ -227,7 +241,7 @@ impl eframe::App for OverlayApp {
                 }
 
                 // 4. Handle mouse drag state machine
-                if pointer_down {
+                if pointer_down && !pointer_over_widget {
                     if let Some(pos) = pointer_pos {
                         if self.current_tool == ToolType::Select {
                             // Selection creation, move, or resize
@@ -389,7 +403,7 @@ impl eframe::App for OverlayApp {
 
                 // Handle single clicks for StepBadge or Text
                 let pointer_clicked = ctx.input(|i| i.pointer.primary_clicked());
-                if pointer_clicked {
+                if pointer_clicked && !pointer_over_widget {
                     if let (Some(sel), Some(pos)) = (self.selection, pointer_pos) {
                         if sel.to_rect().contains(pos) {
                             match self.current_tool {
@@ -520,12 +534,10 @@ impl eframe::App for OverlayApp {
                             can_redo,
                         ) {
                             match action {
-                                ToolbarAction::Pin => self.handle_pin(ctx),
-                                ToolbarAction::Copy => self.handle_copy(ctx),
-                                ToolbarAction::Save => self.handle_save(ctx),
-                                ToolbarAction::Cancel => {
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close)
-                                }
+                                ToolbarAction::Pin => self.handle_pin(),
+                                ToolbarAction::Copy => self.handle_copy(),
+                                ToolbarAction::Save => self.handle_save(),
+                                ToolbarAction::Cancel => std::process::exit(0),
                                 ToolbarAction::Undo => {
                                     self.history.undo();
                                 }
@@ -557,12 +569,12 @@ impl eframe::App for OverlayApp {
                         if self.current_tool != ToolType::Select {
                             self.current_tool = ToolType::Select;
                         } else {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            std::process::exit(0);
                         }
                     }
 
                     if (i.key_pressed(Key::P) || i.key_pressed(Key::F3)) && self.selection.is_some() {
-                        self.handle_pin(ctx);
+                        self.handle_pin();
                     }
 
                     let cmd = i.modifiers.matches_logically(Modifiers::COMMAND)
@@ -576,12 +588,12 @@ impl eframe::App for OverlayApp {
                         } else if i.key_pressed(Key::Y) {
                             self.history.redo();
                         } else if i.key_pressed(Key::C) {
-                            self.handle_copy(ctx);
+                            self.handle_copy();
                         } else if i.key_pressed(Key::S) {
-                            self.handle_save(ctx);
+                            self.handle_save();
                         }
                     } else if i.key_pressed(Key::Enter) {
-                        self.handle_copy(ctx);
+                        self.handle_copy();
                     }
                 });
             });

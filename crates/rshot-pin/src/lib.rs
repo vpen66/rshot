@@ -39,10 +39,36 @@ pub fn launch_pin(
     eframe::run_native(
         "rshot-pin",
         native_options,
-        Box::new(move |_cc| Ok(Box::new(PinApp::new(image, scale_factor)))),
+        Box::new(move |cc| {
+            install_cjk_fonts(&cc.egui_ctx);
+            Ok(Box::new(PinApp::new(image, scale_factor)))
+        }),
     )?;
 
     Ok(())
+}
+
+// egui's built-in fonts have no CJK glyphs; without this Chinese text renders as tofu boxes.
+fn install_cjk_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "noto_sans_sc".to_owned(),
+        egui::FontData::from_static(include_bytes!(
+            "../../../assets/fonts/NotoSansSC-Regular.otf"
+        ))
+        .into(),
+    );
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "noto_sans_sc".to_owned());
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .push("noto_sans_sc".to_owned());
+    ctx.set_fonts(fonts);
 }
 
 #[cfg(test)]

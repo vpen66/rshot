@@ -147,7 +147,7 @@ impl eframe::App for PinApp {
 
                 // Double click to close
                 if response.double_clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    std::process::exit(0);
                 }
 
                 // Right click context menu
@@ -182,8 +182,7 @@ impl eframe::App for PinApp {
                     }
                     ui.separator();
                     if ui.button("❌ 关闭 (Esc)").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        ui.close_menu();
+                        std::process::exit(0);
                     }
                 });
 
@@ -215,7 +214,7 @@ impl eframe::App for PinApp {
                 // Keyboard shortcuts
                 ctx.input(|i| {
                     if i.key_pressed(Key::Escape) {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        std::process::exit(0);
                     }
                     if i.key_pressed(Key::R) {
                         self.rotate_clockwise(ctx);

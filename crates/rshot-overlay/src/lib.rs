@@ -11,22 +11,20 @@ use eframe::egui::ViewportBuilder;
 use image::RgbaImage;
 use log::info;
 use rshot_core::ScreenCapture;
-use std::sync::{Arc, Mutex};
-
-/// Request payload emitted when user pins a screenshot.
-#[derive(Debug, Clone)]
-pub struct PinRequest {
-    pub image: RgbaImage,
-    pub x: f32,
-    pub y: f32,
-    pub scale_factor: f32,
-}
 
 /// Freezes the primary monitor and launches the interactive screenshot overlay window.
-/// Returns Some(PinRequest) if user opted to pin the screenshot, or None on exit/copy/save/cancel.
-pub fn launch_overlay() -> Result<Option<PinRequest>, Box<dyn std::error::Error>> {
+pub fn launch_overlay() -> Result<(), Box<dyn std::error::Error>> {
     info!("Capturing primary monitor for overlay...");
     let (monitor_info, captured_image) = ScreenCapture::capture_primary_monitor()?;
+
+    if is_blank_capture(&captured_image) {
+        return Err(
+            "Captured a solid black frame: screen recording permission is likely not granted \
+             to the terminal/IDE launching rshot (macOS: System Settings -> Privacy & Security \
+             -> Screen Recording). Grant it and retry."
+                .into(),
+        );
+    }
 
     let scale_factor = monitor_info.scale_factor;
     let logical_width = monitor_info.width as f32 / scale_factor;
@@ -52,22 +50,47 @@ pub fn launch_overlay() -> Result<Option<PinRequest>, Box<dyn std::error::Error>
         ..Default::default()
     };
 
-    let pin_slot = Arc::new(Mutex::new(None));
-    let pin_slot_clone = pin_slot.clone();
-
     eframe::run_native(
         "rshot",
         native_options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
+            install_cjk_fonts(&cc.egui_ctx);
             Ok(Box::new(OverlayApp::new(
                 captured_image,
                 scale_factor,
                 monitor_origin,
-                pin_slot_clone,
             )))
         }),
     )?;
 
-    let result = pin_slot.lock().unwrap().take();
-    Ok(result)
+    Ok(())
+}
+
+/// A uniformly near-black frame means the OS denied screen capture (missing permission).
+fn is_blank_capture(img: &RgbaImage) -> bool {
+    let first = *img.get_pixel(0, 0);
+    first[0] < 40 && first[1] < 40 && first[2] < 40 && img.pixels().all(|p| *p == first)
+}
+
+// egui's built-in fonts have no CJK glyphs; without this Chinese text renders as tofu boxes.
+fn install_cjk_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "noto_sans_sc".to_owned(),
+        egui::FontData::from_static(include_bytes!(
+            "../../../assets/fonts/NotoSansSC-Regular.otf"
+        ))
+        .into(),
+    );
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "noto_sans_sc".to_owned());
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .push("noto_sans_sc".to_owned());
+    ctx.set_fonts(fonts);
 }

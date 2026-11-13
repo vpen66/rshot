@@ -18,6 +18,10 @@ struct Args {
     #[arg(short, long)]
     fullscreen: bool,
 
+    /// Launch the interactive screenshot overlay immediately instead of the resident tray
+    #[arg(long)]
+    capture: bool,
+
     /// Specify a custom output path to save the screenshot
     #[arg(short, long)]
     output: Option<PathBuf>,
@@ -29,12 +33,37 @@ struct Args {
     /// Print visible on-screen windows (useful for window snapping)
     #[arg(long)]
     list_windows: bool,
+
+    /// Internal handoff: launch the pin window from a temp image written by the overlay
+    #[arg(long, hide = true)]
+    pin_image: Option<PathBuf>,
+
+    #[arg(long, hide = true)]
+    pin_x: Option<f32>,
+
+    #[arg(long, hide = true)]
+    pin_y: Option<f32>,
+
+    #[arg(long, hide = true)]
+    pin_scale: Option<f32>,
 }
 
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let args = Args::parse();
+
+    if let Some(path) = args.pin_image {
+        let img = image::open(&path)?.to_rgba8();
+        let _ = std::fs::remove_file(&path);
+        return rshot_pin::launch_pin(
+            img,
+            args.pin_x.unwrap_or(0.0),
+            args.pin_y.unwrap_or(0.0),
+            args.pin_scale.unwrap_or(1.0),
+        )
+        .map_err(|e| anyhow::anyhow!("{e}"));
+    }
 
     if args.list_monitors {
         println!("=== Detected Monitors ===");
@@ -84,25 +113,17 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Default mode: launch interactive overlay
-    info!("Starting interactive screenshot overlay...");
-    match launch_overlay() {
-        Ok(Some(pin_req)) => {
-            info!("Transitioning to Pin window...");
-            if let Err(e) = rshot_pin::launch_pin(
-                pin_req.image,
-                pin_req.x,
-                pin_req.y,
-                pin_req.scale_factor,
-            ) {
-                eprintln!("Failed to launch pin window: {e}");
-            }
-        }
-        Ok(None) => {}
-        Err(e) => {
+    if args.capture {
+        info!("Starting interactive screenshot overlay...");
+        if let Err(e) = launch_overlay() {
             eprintln!("Failed to run screenshot overlay: {e}");
         }
+        return Ok(());
     }
+
+    // Default mode: resident menu-bar app; launching does not capture immediately.
+    info!("Starting RShot tray (resident)...");
+    rshot_tray::run()?;
 
     Ok(())
 }
