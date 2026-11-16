@@ -46,7 +46,14 @@ struct TrayApp {
 /// Runs the resident menu-bar app. Returns when the user quits from the tray menu.
 pub fn run() -> anyhow::Result<()> {
     let config = Config::load();
-    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
+    let mut builder = EventLoop::<UserEvent>::with_user_event();
+    // Resident menu-bar app: accessory policy keeps it out of the Dock and app switcher.
+    #[cfg(target_os = "macos")]
+    {
+        use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
+        builder.with_activation_policy(ActivationPolicy::Accessory);
+    }
+    let event_loop = builder.build()?;
     let proxy = event_loop.create_proxy();
 
     {

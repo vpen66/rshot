@@ -3822,9 +3822,12 @@ dependencies = [
 name = "rshot-core"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "arboard",
  "image",
+ "libc",
  "log",
+ "objc2-core-graphics",
  "thiserror 2.0.20",
  "xcap",
 ]
@@ -3840,6 +3843,7 @@ dependencies = [
  "rshot-core",
  "rshot-pin",
  "rshot-storage",
+ "winit",
 ]
 
 [[package]]
@@ -3852,6 +3856,7 @@ dependencies = [
  "log",
  "rshot-core",
  "rshot-storage",
+ "winit",
 ]
 
 [[package]]

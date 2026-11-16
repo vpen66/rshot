@@ -1,9 +1,59 @@
+use ab_glyph::{Font, FontRef, PxScale, point};
 use image::{Rgba, RgbaImage};
+use std::sync::OnceLock;
+
+/// Bundled CJK font so exported text annotations match the overlay's rendering.
+const TEXT_FONT_BYTES: &[u8] = include_bytes!("../../../../assets/fonts/NotoSansSC-Regular.otf");
+
+fn text_font() -> &'static FontRef<'static> {
+    static FONT: OnceLock<FontRef<'static>> = OnceLock::new();
+    FONT.get_or_init(|| {
+        FontRef::try_from_slice(TEXT_FONT_BYTES).expect("bundled NotoSansSC font must be valid")
+    })
+}
 
 /// Low-level image processing operations for annotations and visual effects.
 pub struct ImageProcessor;
 
 impl ImageProcessor {
+    /// Rasterizes a single line of text at (x, y) top-left with the bundled font.
+    pub fn draw_text(
+        img: &mut RgbaImage,
+        x: i32,
+        y: i32,
+        text: &str,
+        font_size_px: f32,
+        color: Rgba<u8>,
+    ) {
+        let font = text_font();
+        let units = font.units_per_em().unwrap_or(1000.0);
+        let scale = PxScale::from(font_size_px.max(1.0));
+        let ascent = font.ascent_unscaled() * scale.y / units;
+        let baseline = y as f32 + ascent;
+        let (img_w, img_h) = img.dimensions();
+        let mut caret = x as f32;
+
+        for ch in text.chars() {
+            let id = font.glyph_id(ch);
+            let glyph = id.with_scale_and_position(scale, point(caret, baseline));
+            if let Some(outlined) = font.outline_glyph(glyph) {
+                let bounds = outlined.px_bounds();
+                outlined.draw(|px, py, coverage| {
+                    let tx = bounds.min.x as i32 + px as i32;
+                    let ty = bounds.min.y as i32 + py as i32;
+                    if tx >= 0 && ty >= 0 && (tx as u32) < img_w && (ty as u32) < img_h {
+                        let alpha = (color[3] as f32 * coverage).round() as u8;
+                        if alpha > 0 {
+                            let p = img.get_pixel_mut(tx as u32, ty as u32);
+                            Self::blend_pixel(p, Rgba([color[0], color[1], color[2], alpha]));
+                        }
+                    }
+                });
+            }
+            caret += font.h_advance_unscaled(id) * scale.x / units;
+        }
+    }
+
     /// Applies a pixelated mosaic effect to a rectangular region.
     pub fn apply_mosaic(
         img: &mut RgbaImage,
@@ -366,7 +416,27 @@ impl ImageProcessor {
         let thickness = (radius / 6).max(2) as u32;
         Self::draw_ellipse(img, cx, cy, radius, radius, thickness, border_color, false);
 
-        // Simple raster digits 0..9 for the badge number (up to 99)
+        Self::draw_badge_number(img, cx, cy, number);
+    }
+
+    /// Draws a numbered square step badge at (cx, cy).
+    pub fn draw_step_badge_square(
+        img: &mut RgbaImage,
+        cx: i32,
+        cy: i32,
+        radius: i32,
+        number: usize,
+        bg_color: Rgba<u8>,
+    ) {
+        let side = (radius * 2).max(1) as u32;
+        Self::draw_rect(img, cx - radius, cy - radius, side, side, 1, bg_color, true);
+        let border = Rgba([255, 255, 255, 255]);
+        let thickness = (radius / 6).max(2) as u32;
+        Self::draw_rect(img, cx - radius, cy - radius, side, side, thickness, border, false);
+        Self::draw_badge_number(img, cx, cy, number);
+    }
+
+    fn draw_badge_number(img: &mut RgbaImage, cx: i32, cy: i32, number: usize) {
         let text_color = Rgba([255, 255, 255, 255]);
         let num_str = number.to_string();
         let digit_w = 4;
@@ -374,11 +444,99 @@ impl ImageProcessor {
         let total_w = num_str.len() as i32 * (digit_w + 1) - 1;
         let start_x = cx - total_w / 2;
         let start_y = cy - digit_h / 2;
-
         for (i, ch) in num_str.chars().enumerate() {
             let dx = start_x + i as i32 * (digit_w + 1);
             Self::draw_glyph(img, dx, start_y, ch, text_color);
         }
+    }
+
+    /// Fills (even-odd scanline) and/or strokes a polygon path.
+    pub fn draw_polygon(
+        img: &mut RgbaImage,
+        points: &[(i32, i32)],
+        thickness: u32,
+        color: Rgba<u8>,
+        filled: bool,
+        closed: bool,
+    ) {
+        if points.len() < 2 {
+            return;
+        }
+        if filled && closed && points.len() >= 3 {
+            let (w, h) = img.dimensions();
+            let min_y = points.iter().map(|p| p.1).min().unwrap().max(0);
+            let max_y = points.iter().map(|p| p.1).max().unwrap().min(h as i32 - 1);
+            for y in min_y..=max_y {
+                let mut xs: Vec<f32> = Vec::new();
+                for i in 0..points.len() {
+                    let (x0, y0) = points[i];
+                    let (x1, y1) = points[(i + 1) % points.len()];
+                    if (y0 <= y && y1 > y) || (y1 <= y && y0 > y) {
+                        let t = (y - y0) as f32 / (y1 - y0) as f32;
+                        xs.push(x0 as f32 + t * (x1 - x0) as f32);
+                    }
+                }
+                xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                for pair in xs.chunks(2) {
+                    if pair.len() < 2 {
+                        continue;
+                    }
+                    let xa = pair[0].ceil().max(0.0) as u32;
+                    let xb = pair[1].floor().min((w - 1) as f32) as u32;
+                    for x in xa..=xb {
+                        let p = img.get_pixel_mut(x, y as u32);
+                        Self::blend_pixel(p, color);
+                    }
+                }
+            }
+        }
+        let segments = if closed { points.len() } else { points.len() - 1 };
+        for i in 0..segments {
+            let (x0, y0) = points[i];
+            let (x1, y1) = points[(i + 1) % points.len()];
+            Self::draw_thick_line(img, x0, y0, x1, y1, thickness, color);
+        }
+    }
+
+    /// Draws a rounded rectangle outline or fill, approximating corners with arcs.
+    pub fn draw_rounded_rect(
+        img: &mut RgbaImage,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        radius: i32,
+        thickness: u32,
+        color: Rgba<u8>,
+        filled: bool,
+    ) {
+        if width == 0 || height == 0 {
+            return;
+        }
+        let r = radius.max(0).min((width.min(height) / 2) as i32);
+        if r <= 0 {
+            Self::draw_rect(img, x, y, width, height, thickness, color, filled);
+            return;
+        }
+        let (x0, y0) = (x as f32, y as f32);
+        let (x1, y1) = (x as f32 + width as f32, y as f32 + height as f32);
+        let rf = r as f32;
+        let pi = std::f32::consts::PI;
+        let corners = [
+            (x1 - rf, y0 + rf, -pi / 2.0, 0.0),
+            (x1 - rf, y1 - rf, 0.0, pi / 2.0),
+            (x0 + rf, y1 - rf, pi / 2.0, pi),
+            (x0 + rf, y0 + rf, pi, 1.5 * pi),
+        ];
+        let steps = 6;
+        let mut pts: Vec<(i32, i32)> = Vec::new();
+        for (cx, cy, a0, a1) in corners {
+            for k in 0..=steps {
+                let a = a0 + (a1 - a0) * k as f32 / steps as f32;
+                pts.push(((cx + rf * a.cos()).round() as i32, (cy + rf * a.sin()).round() as i32));
+            }
+        }
+        Self::draw_polygon(img, &pts, thickness, color, filled, true);
     }
 
     /// Renders a basic 3x5/4x7 micro-bitmap glyph for number characters.

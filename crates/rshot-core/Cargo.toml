@@ -9,3 +9,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 arboard = "3.4"
 thiserror = "2.0"
 log = "0.4"
+ab_glyph = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-graphics = { version = "0.3", features = ["CGWindow"] }
+libc = "0.2"

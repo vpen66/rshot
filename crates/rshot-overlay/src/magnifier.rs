@@ -74,7 +74,7 @@ impl Magnifier {
 
                 let color = if px >= 0 && px < img_w as i32 && py >= 0 && py < img_h as i32 {
                     let p = image.get_pixel(px as u32, py as u32);
-                    Color32::from_rgba_premultiplied(p[0], p[1], p[2], p[3])
+                    Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3])
                 } else {
                     Color32::BLACK
                 };

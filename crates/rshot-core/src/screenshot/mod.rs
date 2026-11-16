@@ -33,6 +33,40 @@ pub struct WindowInfo {
 pub struct ScreenCapture;
 
 impl ScreenCapture {
+    /// Whether the OS will actually hand us screen pixels.
+    ///
+    /// macOS gates capture behind TCC and, when the grant is missing, still
+    /// returns a flat placeholder frame instead of an error, so callers have to
+    /// ask up front rather than trust a successful `capture_image()`.
+    pub fn has_screen_recording_permission() -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            objc2_core_graphics::CGPreflightScreenCaptureAccess()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            true
+        }
+    }
+
+    /// Name of the outermost app that launched this process — the entry macOS
+    /// lists under "Screen & System Audio Recording".
+    ///
+    /// A bare CLI binary such as `target/release/rshot` has no TCC identity of
+    /// its own, so there is nothing to switch on for "rshot". The grant always
+    /// lands on the terminal, IDE, or launcher that started it, which is why the
+    /// permission prompt names an app the user never associated with rshot.
+    pub fn responsible_app_name() -> Option<String> {
+        #[cfg(target_os = "macos")]
+        {
+            macos::responsible_app_name()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            None
+        }
+    }
+
     /// Lists all available monitors.
     pub fn get_monitors() -> Result<Vec<MonitorInfo>> {
         let monitors = Monitor::all()
@@ -181,6 +215,87 @@ impl ScreenCapture {
         debug!("Cropping region: x={x}, y={y}, w={clamped_w}, h={clamped_h}");
         let cropped = image::imageops::crop_imm(img, x, y, clamped_w, clamped_h).to_image();
         Ok(cropped)
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use std::ffi::CStr;
+    use std::os::raw::{c_char, c_void};
+
+    const PROC_PIDTBSDINFO: i32 = 3;
+    const PROC_PIDPATHINFO_MAXSIZE: usize = 4096;
+    // launchd; anything at or below it is the end of our ancestry.
+    const LAUNCHD_PID: i32 = 1;
+
+    unsafe extern "C" {
+        fn proc_pidinfo(
+            pid: i32,
+            flavor: i32,
+            arg: u64,
+            buffer: *mut c_void,
+            buffersize: i32,
+        ) -> i32;
+        fn proc_pidpath(pid: i32, buffer: *mut c_void, buffersize: u32) -> i32;
+    }
+
+    fn parent_pid(pid: i32) -> Option<i32> {
+        let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+        let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
+        let written = unsafe {
+            proc_pidinfo(
+                pid,
+                PROC_PIDTBSDINFO,
+                0,
+                &mut info as *mut libc::proc_bsdinfo as *mut c_void,
+                size,
+            )
+        };
+        (written == size).then_some(info.pbi_ppid as i32)
+    }
+
+    fn executable_path(pid: i32) -> Option<String> {
+        let mut buf = [0 as c_char; PROC_PIDPATHINFO_MAXSIZE];
+        let written = unsafe { proc_pidpath(pid, buf.as_mut_ptr() as *mut c_void, buf.len() as u32) };
+        if written <= 0 {
+            return None;
+        }
+        Some(unsafe { CStr::from_ptr(buf.as_ptr()) }.to_string_lossy().into_owned())
+    }
+
+    /// `/Applications/IntelliJ IDEA.app/Contents/MacOS/idea` -> `IntelliJ IDEA`.
+    fn app_bundle_name(path: &str) -> Option<String> {
+        let head = &path[..path.find(".app/Contents/MacOS/")?];
+        let name = head.rsplit('/').next()?;
+        (!name.is_empty()).then(|| name.to_string())
+    }
+
+    pub fn responsible_app_name() -> Option<String> {
+        let mut pid = std::process::id() as i32;
+        let mut bundle = None;
+        let mut outermost = None;
+
+        // The permission is recorded against the outermost app in the chain, so
+        // keep walking up and remember the last app bundle we saw.
+        for _ in 0..16 {
+            let Some(parent) = parent_pid(pid) else {
+                break;
+            };
+            if parent <= LAUNCHD_PID {
+                break;
+            }
+            pid = parent;
+            if let Some(path) = executable_path(pid) {
+                if let Some(name) = app_bundle_name(&path) {
+                    bundle = Some(name);
+                }
+                outermost = Some(path);
+            }
+        }
+
+        bundle.or_else(|| {
+            outermost.map(|path| path.rsplit('/').next().unwrap_or(path.as_str()).to_string())
+        })
     }
 }
 

@@ -30,11 +30,19 @@ pub fn launch_pin(
         .with_position([pos_x, pos_y])
         .with_inner_size([logical_w, logical_h]);
 
-    let native_options = eframe::NativeOptions {
+    let mut native_options = eframe::NativeOptions {
         viewport,
         centered: false,
         ..Default::default()
     };
+    // Accessory app: the floating sticker stays out of the Dock.
+    #[cfg(target_os = "macos")]
+    {
+        native_options.event_loop_builder = Some(Box::new(|builder| {
+            use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
+            builder.with_activation_policy(ActivationPolicy::Accessory);
+        }));
+    }
 
     eframe::run_native(
         "rshot-pin",
