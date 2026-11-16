@@ -4,11 +4,15 @@ use config::Config;
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState, hotkey::HotKey};
 use log::{error, info, warn};
 use rshot_updater::CheckOutcome;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::process::Command;
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
     menu::{Menu, MenuEvent, MenuItem},
 };
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 use winit::{
     application::ApplicationHandler,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
@@ -76,8 +80,21 @@ struct TrayApp {
     update_item: Option<MenuItem>,
 }
 
+// 仅 detach 双击启动时独占的控制台；与终端共享（count>1）时保留，避免关掉用户终端。
+#[cfg(target_os = "windows")]
+fn release_owned_console() {
+    use windows_sys::Win32::System::Console::{FreeConsole, GetConsoleProcessList};
+    let mut pids = [0u32; 2];
+    let count = unsafe { GetConsoleProcessList(pids.as_mut_ptr(), pids.len() as u32) };
+    if count == 1 {
+        unsafe { FreeConsole() };
+    }
+}
+
 /// Runs the resident menu-bar app. Returns when the user quits from the tray menu.
 pub fn run() -> anyhow::Result<()> {
+    #[cfg(target_os = "windows")]
+    release_owned_console();
     let config = Config::load();
     let mut builder = EventLoop::<UserEvent>::with_user_event();
     // Resident menu-bar app: accessory policy keeps it out of the Dock and app switcher.
@@ -364,7 +381,12 @@ impl TrayApp {
         match result {
             Ok(version) => {
                 info!("Update v{version} installed, relaunching RShot");
-                let spawned = std::env::current_exe().and_then(|exe| Command::new(exe).spawn());
+                let spawned = std::env::current_exe().and_then(|exe| {
+                    let mut cmd = Command::new(exe);
+                    #[cfg(target_os = "windows")]
+                    cmd.creation_flags(CREATE_NO_WINDOW);
+                    cmd.spawn()
+                });
                 match spawned {
                     Ok(_) => event_loop.exit(),
                     Err(e) => {
@@ -389,6 +411,8 @@ impl TrayApp {
             }
         };
         let mut cmd = Command::new(exe);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
         match kind {
             CaptureKind::Interactive => cmd.arg("--capture"),
             CaptureKind::Fullscreen => cmd.arg("--fullscreen"),
