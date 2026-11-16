@@ -4,6 +4,7 @@ use config::Config;
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState, hotkey::HotKey};
 use log::{error, info, warn};
 use rshot_updater::CheckOutcome;
+use std::path::PathBuf;
 use std::process::Command;
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
@@ -99,6 +100,11 @@ fn background_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
 #[cfg(not(target_os = "windows"))]
 fn background_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     Command::new(program)
+}
+
+/// 常驻日志文件，与 config.toml 同目录；Windows 后台运行时 stderr 已 detach，靠它留痕。
+pub fn log_path() -> PathBuf {
+    config::config_path().with_file_name("rshot.log")
 }
 
 /// Runs the resident menu-bar app. Returns when the user quits from the tray menu.

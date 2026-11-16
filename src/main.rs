@@ -4,6 +4,7 @@ use log::info;
 use rshot_core::{ClipboardService, ScreenCapture};
 use rshot_overlay::launch_overlay;
 use rshot_storage::{OutputFormat, StorageService};
+use std::io::Write;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -48,8 +49,43 @@ struct Args {
     pin_scale: Option<f32>,
 }
 
+struct LogTee {
+    file: Option<std::fs::File>,
+}
+
+impl Write for LogTee {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if let Some(f) = &mut self.file {
+            let _ = f.write_all(buf);
+        }
+        let _ = std::io::stderr().write_all(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        if let Some(f) = &mut self.file {
+            let _ = f.flush();
+        }
+        Ok(())
+    }
+}
+
+fn init_logging() {
+    let path = rshot_tray::log_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .target(env_logger::Target::Pipe(Box::new(LogTee { file })))
+        .init();
+}
+
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    init_logging();
 
     let args = Args::parse();
 
