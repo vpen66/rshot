@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use log::info;
+use log::{error, info, warn};
 use rshot_core::{ClipboardService, ScreenCapture};
 use rshot_overlay::launch_overlay;
 use rshot_storage::{OutputFormat, StorageService};
@@ -128,24 +128,38 @@ fn main() -> Result<()> {
 
     if args.fullscreen {
         info!("Direct fullscreen capture mode triggered.");
-        let (_info, image) = ScreenCapture::capture_primary_monitor()?;
+        let (_info, image) = ScreenCapture::capture_primary_monitor().map_err(|e| {
+            error!("Fullscreen capture failed: {e}");
+            e
+        })?;
 
         // Copy to clipboard
         if let Err(e) = ClipboardService::copy_image(&image) {
-            eprintln!("Warning: Failed to copy to clipboard: {e}");
+            warn!("Failed to copy to clipboard: {e}");
         } else {
             println!("✔ Screenshot copied to clipboard!");
         }
 
         // Save to file
         let saved_path = if let Some(custom_path) = args.output {
-            StorageService::save_image(&image, &custom_path)?;
+            StorageService::save_image(&image, &custom_path).map_err(|e| {
+                error!("Fullscreen save failed: {e}");
+                e
+            })?;
             custom_path
         } else {
-            StorageService::save_to_default_dir(&image, OutputFormat::Png)?
+            StorageService::save_to_default_dir(&image, OutputFormat::Png).map_err(|e| {
+                error!("Fullscreen save failed: {e}");
+                e
+            })?
         };
 
+        info!("Fullscreen screenshot saved to: {}", saved_path.display());
         println!("✔ Screenshot saved to: {}", saved_path.display());
+        let _ = rshot_overlay::show_toast(
+            "全屏截图已保存".to_string(),
+            saved_path.display().to_string(),
+        );
         return Ok(());
     }
 

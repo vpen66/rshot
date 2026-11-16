@@ -4350,6 +4350,7 @@ dependencies = [
  "anyhow",
  "dirs 6.0.0",
  "global-hotkey",
+ "image",
  "log",
  "rshot-updater",
  "serde",

@@ -3,10 +3,12 @@ pub mod app;
 mod icons;
 pub mod magnifier;
 pub mod state;
+mod toast;
 pub mod toolbar;
 
 pub use app::OverlayApp;
 pub use state::Selection;
+pub use toast::show_toast;
 
 use eframe::egui::ViewportBuilder;
 use image::RgbaImage;
@@ -109,7 +111,7 @@ fn is_blank_capture(img: &RgbaImage) -> bool {
 }
 
 // egui's built-in fonts have no CJK glyphs; without this Chinese text renders as tofu boxes.
-fn install_cjk_fonts(ctx: &egui::Context) {
+pub(crate) fn install_cjk_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
         "noto_sans_sc".to_owned(),

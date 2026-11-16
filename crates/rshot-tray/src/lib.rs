@@ -1,4 +1,5 @@
 mod config;
+mod icon;
 
 use config::Config;
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState, hotkey::HotKey};
@@ -453,43 +454,13 @@ fn open_config_file() {
     }
 }
 
-fn set_pixel(rgba: &mut [u8], size: u32, x: u32, y: u32) {
-    if x < size && y < size {
-        let i = ((y * size + x) * 4) as usize;
-        rgba[i + 3] = 255;
-    }
-}
-
 /// A viewfinder-style glyph drawn as a macOS template image (alpha only).
 fn make_icon() -> anyhow::Result<Icon> {
-    const S: u32 = 32;
-    let mut rgba = vec![0u8; (S * S * 4) as usize];
-    let m = 5u32;
-    let len = 9u32;
-    let t = 2u32;
-    let max = S - 1 - m;
-    for d in 0..len {
-        for k in 0..t {
-            set_pixel(&mut rgba, S, m + d, m + k);
-            set_pixel(&mut rgba, S, m + k, m + d);
-            set_pixel(&mut rgba, S, max - d, m + k);
-            set_pixel(&mut rgba, S, max - k, m + d);
-            set_pixel(&mut rgba, S, m + d, max - k);
-            set_pixel(&mut rgba, S, m + k, max - d);
-            set_pixel(&mut rgba, S, max - d, max - k);
-            set_pixel(&mut rgba, S, max - k, max - d);
-        }
-    }
-    let c = 16i32;
-    let r = 3i32;
-    for y in 0..S as i32 {
-        for x in 0..S as i32 {
-            let dx = x - c;
-            let dy = y - c;
-            if dx * dx + dy * dy <= r * r {
-                set_pixel(&mut rgba, S, x as u32, y as u32);
-            }
-        }
-    }
-    Icon::from_rgba(rgba, S, S).map_err(|e| anyhow::anyhow!("tray icon: {e:?}"))
+    // 22pt is the menu bar height cap; 44px maps 1:1 onto points on Retina.
+    const S: u32 = 44;
+    #[cfg(target_os = "macos")]
+    let rgb = [0, 0, 0];
+    #[cfg(not(target_os = "macos"))]
+    let rgb = [24, 144, 255];
+    Icon::from_rgba(icon::rgba(S, rgb), S, S).map_err(|e| anyhow::anyhow!("tray icon: {e:?}"))
 }
