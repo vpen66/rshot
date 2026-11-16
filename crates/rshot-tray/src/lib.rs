@@ -76,25 +76,35 @@ struct TrayApp {
     update_item: Option<MenuItem>,
 }
 
-// 隐藏而非 FreeConsole：detach 会使标准句柄失效、子进程 spawn 全失败；共享终端（count>1）不藏。
+// detach 关闭双击启动的控制台 / Windows Terminal 标签页；从终端启动时只脱离本进程，终端本身保留。
 #[cfg(target_os = "windows")]
-fn hide_owned_console() {
-    use windows_sys::Win32::System::Console::{GetConsoleProcessList, GetConsoleWindow};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, ShowWindow};
-    let mut pids = [0u32; 2];
-    let count = unsafe { GetConsoleProcessList(pids.as_mut_ptr(), pids.len() as u32) };
-    if count == 1 {
-        let hwnd = unsafe { GetConsoleWindow() };
-        if !hwnd.is_null() {
-            unsafe { ShowWindow(hwnd, SW_HIDE) };
-        }
-    }
+fn release_owned_console() {
+    unsafe { windows_sys::Win32::System::Console::FreeConsole() };
+}
+
+// FreeConsole 后父进程标准句柄失效，默认继承会让 spawn 失败；子进程改用 NUL 并隐藏控制台。
+#[cfg(target_os = "windows")]
+fn background_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+    let mut cmd = Command::new(program);
+    cmd.creation_flags(CREATE_NO_WINDOW)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    cmd
+}
+
+#[cfg(not(target_os = "windows"))]
+fn background_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    Command::new(program)
 }
 
 /// Runs the resident menu-bar app. Returns when the user quits from the tray menu.
 pub fn run() -> anyhow::Result<()> {
     #[cfg(target_os = "windows")]
-    hide_owned_console();
+    release_owned_console();
     let config = Config::load();
     let mut builder = EventLoop::<UserEvent>::with_user_event();
     // Resident menu-bar app: accessory policy keeps it out of the Dock and app switcher.
@@ -381,7 +391,8 @@ impl TrayApp {
         match result {
             Ok(version) => {
                 info!("Update v{version} installed, relaunching RShot");
-                let spawned = std::env::current_exe().and_then(|exe| Command::new(exe).spawn());
+                let spawned =
+                    std::env::current_exe().and_then(|exe| background_command(exe).spawn());
                 match spawned {
                     Ok(_) => event_loop.exit(),
                     Err(e) => {
@@ -405,7 +416,7 @@ impl TrayApp {
                 return;
             }
         };
-        let mut cmd = Command::new(exe);
+        let mut cmd = background_command(exe);
         match kind {
             CaptureKind::Interactive => cmd.arg("--capture"),
             CaptureKind::Fullscreen => cmd.arg("--fullscreen"),
@@ -425,7 +436,7 @@ fn open_config_file() {
     #[cfg(target_os = "macos")]
     let result = Command::new("open").arg("-t").arg(&path).spawn();
     #[cfg(target_os = "windows")]
-    let result = Command::new("cmd")
+    let result = background_command("cmd")
         .args(["/C", "start", "", &path.to_string_lossy()])
         .spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
