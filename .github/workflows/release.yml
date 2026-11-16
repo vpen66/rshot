@@ -18,7 +18,8 @@ jobs:
             target: aarch64-apple-darwin
           - platform: macos-latest
             target: x86_64-apple-darwin
-          - platform: ubuntu-22.04
+          # Linux 需 24.04+：xcap -> pipewire 0.10 的 bindgen 依赖新版 SPA 头文件
+          - platform: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
@@ -60,7 +61,7 @@ jobs:
           grep -H '^version' Cargo.toml crates/*/Cargo.toml
 
       - name: Install system dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \

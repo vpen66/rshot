@@ -16,3 +16,4 @@
 - 更新检查走 GitHub Releases API（crates/rshot-updater，self_update + rustls）
 - 发布资产命名必须含 target triple（如 `rshot-v0.2.0-aarch64-apple-darwin.tar.gz`），二进制位于压缩包根目录，否则 self_update 匹配/解压失败
 - 版本号在 tag 触发时同步进 workspace 全部 Cargo.toml；本地开发版本以根 Cargo.toml 为准
+- Linux CI/发布必须用 ubuntu-24.04+：xcap -> pipewire 0.10 的 libspa-sys 用 bindgen 读系统 SPA 头文件，22.04 的 PipeWire 0.3.48 里 spa_meta_first 等还是宏，编译缺函数；代价是 Linux 产物要求 glibc 2.39+（老发行版需另行 zigbuild/容器方案）
