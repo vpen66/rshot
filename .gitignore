@@ -1,1 +1,56 @@
+# Rust / Cargo
 /target
+**/*.rs.bk
+*.pdb
+
+# 本地构建 / 打包产物（CI 产物不落地仓库）
+/dist
+/release
+/rshot-*.tar.gz
+/rshot-*.zip
+
+# 测试与覆盖率
+lcov.info
+cobertura.xml
+tarpaulin-report.html
+*.profraw
+*.profdata
+/coverage
+
+# 日志与临时文件
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.tmp/
+
+# 环境变量与密钥（不要提交任何凭据）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+
+# 编辑器 / IDE
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+.history/
+
+# macOS 系统文件
+.DS_Store
+**/.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+.fseventsd/
+.TemporaryItems/
+__MACOSX/
+Icon?
