@@ -3,6 +3,7 @@ mod config;
 use config::Config;
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState, hotkey::HotKey};
 use log::{error, info, warn};
+use rshot_updater::CheckOutcome;
 use std::process::Command;
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
@@ -10,7 +11,7 @@ use tray_icon::{
 };
 use winit::{
     application::ApplicationHandler,
-    event_loop::{ActiveEventLoop, EventLoop},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +23,34 @@ enum CaptureKind {
 enum UserEvent {
     Menu(String),
     Hotkey(u32),
+    UpdateChecked {
+        result: Result<CheckOutcome, String>,
+        manual: bool,
+    },
+    UpdateInstalled(Result<String, String>),
+}
+
+#[derive(Clone, PartialEq)]
+enum UpdateState {
+    Idle,
+    Checking,
+    Available(String),
+    UpToDate,
+    Installing,
+    Failed,
+}
+
+impl UpdateState {
+    fn menu_label(&self) -> (String, bool) {
+        match self {
+            Self::Idle => ("检查更新".into(), true),
+            Self::Checking => ("正在检查更新…".into(), false),
+            Self::Available(v) => (format!("安装更新 v{v}"), true),
+            Self::UpToDate => ("已是最新版本".into(), true),
+            Self::Installing => ("正在下载并安装更新…".into(), false),
+            Self::Failed => ("更新失败，点击重试".into(), true),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -30,17 +59,21 @@ struct MenuIds {
     fullscreen: String,
     edit_config: String,
     reload_config: String,
+    update: String,
     quit: String,
 }
 
 struct TrayApp {
     initialized: bool,
     config: Config,
+    proxy: EventLoopProxy<UserEvent>,
     hotkey_manager: Option<GlobalHotKeyManager>,
     registered: Vec<HotKey>,
     hotkey_actions: Vec<(u32, CaptureKind)>,
     tray: Option<TrayIcon>,
     menu_ids: Option<MenuIds>,
+    update_state: UpdateState,
+    update_item: Option<MenuItem>,
 }
 
 /// Runs the resident menu-bar app. Returns when the user quits from the tray menu.
@@ -74,11 +107,14 @@ pub fn run() -> anyhow::Result<()> {
     let mut app = TrayApp {
         initialized: false,
         config,
+        proxy,
         hotkey_manager: None,
         registered: Vec::new(),
         hotkey_actions: Vec::new(),
         tray: None,
         menu_ids: None,
+        update_state: UpdateState::Idle,
+        update_item: None,
     };
     event_loop.run_app(&mut app)?;
     Ok(())
@@ -117,6 +153,8 @@ impl ApplicationHandler<UserEvent> for TrayApp {
                     open_config_file();
                 } else if id == ids.reload_config {
                     self.reload_config();
+                } else if id == ids.update {
+                    self.on_update_menu_clicked();
                 } else if id == ids.quit {
                     event_loop.exit();
                 }
@@ -125,6 +163,12 @@ impl ApplicationHandler<UserEvent> for TrayApp {
                 if let Some((_, kind)) = self.hotkey_actions.iter().find(|(hid, _)| *hid == id) {
                     self.spawn_capture(*kind);
                 }
+            }
+            UserEvent::UpdateChecked { result, manual } => {
+                self.on_update_checked(result, manual);
+            }
+            UserEvent::UpdateInstalled(result) => {
+                self.on_update_installed(result, event_loop);
             }
         }
     }
@@ -151,6 +195,9 @@ impl TrayApp {
             "RShot is resident in the menu bar. Config: {}",
             config::config_path().display()
         );
+        if self.config.update.check_on_startup {
+            self.spawn_update_check(false);
+        }
         Ok(())
     }
 
@@ -160,7 +207,10 @@ impl TrayApp {
             return;
         };
         let bindings = [
-            (self.config.hotkeys.capture.clone(), CaptureKind::Interactive),
+            (
+                self.config.hotkeys.capture.clone(),
+                CaptureKind::Interactive,
+            ),
             (
                 self.config.hotkeys.fullscreen.clone(),
                 CaptureKind::Fullscreen,
@@ -199,7 +249,7 @@ impl TrayApp {
         info!("Configuration reloaded");
     }
 
-    fn build_menu(&self) -> (Menu, MenuIds) {
+    fn build_menu(&mut self) -> (Menu, MenuIds) {
         let capture = MenuItem::new(
             format!("区域截图  ({})", self.config.hotkeys.capture),
             true,
@@ -212,6 +262,8 @@ impl TrayApp {
         );
         let edit_config = MenuItem::new("编辑配置…", true, None);
         let reload_config = MenuItem::new("重载配置", true, None);
+        let (update_label, update_enabled) = self.update_state.menu_label();
+        let update = MenuItem::new(update_label, update_enabled, None);
         let quit = MenuItem::new("退出 RShot", true, None);
 
         let ids = MenuIds {
@@ -219,16 +271,113 @@ impl TrayApp {
             fullscreen: fullscreen.id().0.clone(),
             edit_config: edit_config.id().0.clone(),
             reload_config: reload_config.id().0.clone(),
+            update: update.id().0.clone(),
             quit: quit.id().0.clone(),
         };
 
         let menu = Menu::new();
-        for item in [&capture, &fullscreen, &edit_config, &reload_config, &quit] {
+        for item in [
+            &capture,
+            &fullscreen,
+            &edit_config,
+            &reload_config,
+            &update,
+            &quit,
+        ] {
             if let Err(e) = menu.append(item) {
                 error!("Failed to append menu item: {e}");
             }
         }
+        self.update_item = Some(update);
         (menu, ids)
+    }
+
+    fn set_update_state(&mut self, state: UpdateState) {
+        self.update_state = state;
+        if let Some(item) = &self.update_item {
+            let (label, enabled) = self.update_state.menu_label();
+            item.set_text(label);
+            item.set_enabled(enabled);
+        }
+    }
+
+    fn spawn_update_check(&mut self, manual: bool) {
+        if manual {
+            self.set_update_state(UpdateState::Checking);
+        }
+        let proxy = self.proxy.clone();
+        std::thread::spawn(move || {
+            let result =
+                rshot_updater::check(env!("CARGO_PKG_VERSION")).map_err(|e| format!("{e:#}"));
+            let _ = proxy.send_event(UserEvent::UpdateChecked { result, manual });
+        });
+    }
+
+    fn on_update_menu_clicked(&mut self) {
+        match self.update_state.clone() {
+            UpdateState::Available(version) => {
+                self.set_update_state(UpdateState::Installing);
+                let proxy = self.proxy.clone();
+                std::thread::spawn(move || {
+                    let result = rshot_updater::install(env!("CARGO_PKG_VERSION"), &version)
+                        .map(|()| version)
+                        .map_err(|e| format!("{e:#}"));
+                    let _ = proxy.send_event(UserEvent::UpdateInstalled(result));
+                });
+            }
+            UpdateState::Checking | UpdateState::Installing => {}
+            _ => self.spawn_update_check(true),
+        }
+    }
+
+    fn on_update_checked(&mut self, result: Result<CheckOutcome, String>, manual: bool) {
+        match result {
+            Ok(CheckOutcome::Available(info)) => {
+                info!("Update available: v{} ({})", info.version, info.date);
+                self.set_update_state(UpdateState::Available(info.version));
+            }
+            Ok(CheckOutcome::UpToDate) => {
+                let state = if manual {
+                    UpdateState::UpToDate
+                } else {
+                    UpdateState::Idle
+                };
+                self.set_update_state(state);
+            }
+            Err(e) => {
+                warn!("Update check failed: {e}");
+                let state = if manual {
+                    UpdateState::Failed
+                } else {
+                    UpdateState::Idle
+                };
+                self.set_update_state(state);
+            }
+        }
+    }
+
+    fn on_update_installed(
+        &mut self,
+        result: Result<String, String>,
+        event_loop: &ActiveEventLoop,
+    ) {
+        match result {
+            Ok(version) => {
+                info!("Update v{version} installed, relaunching RShot");
+                let spawned = std::env::current_exe().and_then(|exe| Command::new(exe).spawn());
+                match spawned {
+                    Ok(_) => event_loop.exit(),
+                    Err(e) => {
+                        error!("Failed to relaunch after update: {e}");
+                        self.set_update_state(UpdateState::Failed);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Update install failed: {e}");
+                self.set_update_state(UpdateState::Failed);
+            }
+        }
     }
 
     fn spawn_capture(&self, kind: CaptureKind) {

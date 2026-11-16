@@ -1,0 +1,131 @@
+name: 'Release RShot'
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Resolve & Sync Version
+      # -----------------------------------------------------------------------
+      # tag 触发时取 tag 中的 semver（v1.2.3 -> 1.2.3）；手动触发时取 Cargo.toml
+      # 当前版本。随后同步到 workspace 全部 Cargo.toml，使构建产物版本与发布一致。
+      - name: Resolve version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF_NAME#v}
+          else
+            VERSION=$(sed -nE 's/^version = "([^"]+)"/\1/p' Cargo.toml | head -1)
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.+-]+)?$ ]]; then
+            echo "Invalid semver version: '$VERSION'" >&2
+            exit 1
+          fi
+          echo "Building version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG=v$VERSION" >> $GITHUB_ENV
+
+      - name: Sync version into workspace manifests
+        shell: bash
+        run: |
+          # 只替换行首的 version 字段（即各 [package] 的版本），不影响依赖声明
+          for f in Cargo.toml crates/*/Cargo.toml; do
+            sed -i.bak -E "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$f"
+            rm -f "$f.bak"
+          done
+          grep -H '^version' Cargo.toml crates/*/Cargo.toml
+
+      - name: Install system dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libxcb1-dev \
+            libxcb-randr0-dev \
+            libpipewire-0.3-dev \
+            libegl1-mesa-dev \
+            libgl1-mesa-dev
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Run sccache
+        uses: mozilla-actions/sccache-action@v0.0.8
+
+      - name: Configure sccache & Rust flags
+        shell: bash
+        run: |
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Refresh Cargo.lock for synced versions
+        shell: bash
+        run: cargo update --workspace
+
+      - name: Build release binary
+        shell: bash
+        run: cargo build --release --package rshot --target ${{ matrix.target }}
+
+      # -----------------------------------------------------------------------
+      # Package
+      # -----------------------------------------------------------------------
+      # 资产命名必须包含 target triple（自动更新按它匹配平台包），
+      # 且二进制位于压缩包根目录（self_update 默认在根目录找 rshot[.exe]）。
+      - name: Package archive
+        shell: bash
+        run: |
+          ARCHIVE="rshot-v$VERSION-${{ matrix.target }}"
+          BIN="rshot${{ runner.os == 'Windows' && '.exe' || '' }}"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            (cd "target/${{ matrix.target }}/release" && 7z a "$GITHUB_WORKSPACE/$ARCHIVE.zip" "$BIN")
+            echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
+          else
+            tar -czf "$ARCHIVE.tar.gz" -C "target/${{ matrix.target }}/release" "$BIN"
+            echo "ASSET=$ARCHIVE.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.TAG }}
+          name: RShot v${{ env.VERSION }}
+          files: ${{ env.ASSET }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false

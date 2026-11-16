@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rshot-updater = { path = "../rshot-updater" }
 tray-icon = "0.26"
 global-hotkey = "0.10"
 winit = "0.30"

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 #[command(
     name = "rshot",
     author = "rshot developers",
-    version = "0.1.0",
+    version = env!("CARGO_PKG_VERSION"),
     about = "A modern, high-performance cross-platform screenshot & screen recording productivity tool"
 )]
 struct Args {

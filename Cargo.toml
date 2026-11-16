@@ -6,6 +6,7 @@ members = [
     "crates/rshot-overlay",
     "crates/rshot-pin",
     "crates/rshot-tray",
+    "crates/rshot-updater",
 ]
 resolver = "2"
 

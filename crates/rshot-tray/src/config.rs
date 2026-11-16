@@ -1,10 +1,30 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub hotkeys: Hotkeys,
+    #[serde(default)]
+    pub update: UpdateConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateConfig {
+    #[serde(default = "default_check_on_startup")]
+    pub check_on_startup: bool,
+}
+
+fn default_check_on_startup() -> bool {
+    true
+}
+
+impl Default for UpdateConfig {
+    fn default() -> Self {
+        Self {
+            check_on_startup: default_check_on_startup(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,14 +48,6 @@ impl Default for Hotkeys {
         Self {
             capture: default_capture(),
             fullscreen: default_fullscreen(),
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            hotkeys: Hotkeys::default(),
         }
     }
 }
