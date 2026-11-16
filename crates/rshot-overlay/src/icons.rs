@@ -237,15 +237,22 @@ pub fn draw(painter: &Painter, icon: Icon, area: Rect, color: Color32, bg: Color
             line(p(9.1, 6.8), p(8.9, 11.2), w * 0.85);
         }
         Icon::Pin => {
-            painter.rect_stroke(
-                Rect::from_min_max(p(5.4, 2.2), p(10.6, 5.2)),
-                1.0 * s,
-                Stroke::new(w, color),
-                StrokeKind::Middle,
+            // Tilted pushpin: capped head at top-right, collar notches, and a
+            // needle pointing to bottom-left (matches the Tabler "pin" glyph).
+            poly(
+                vec![
+                    p(9.7, 2.7),
+                    p(7.33, 5.67),
+                    p(4.67, 6.67),
+                    p(3.67, 7.67),
+                    p(8.33, 12.33),
+                    p(9.33, 11.33),
+                    p(10.33, 8.67),
+                    p(13.3, 6.3),
+                ],
+                w,
             );
-            line(p(8.0, 5.2), p(8.0, 9.6), w);
-            line(p(4.8, 9.6), p(11.2, 9.6), w * 1.2);
-            line(p(8.0, 9.6), p(8.0, 14.0), w);
+            line(p(6.0, 10.0), p(3.0, 13.0), w);
         }
         Icon::Copy => {
             painter.rect_stroke(
