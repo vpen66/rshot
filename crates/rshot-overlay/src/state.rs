@@ -15,12 +15,32 @@ pub enum ResizeHandle {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DragState {
     Idle,
-    Creating { start: Pos2 },
-    Moving { original_rect: Rect, grab_offset: Vec2 },
-    Resizing { handle: ResizeHandle, original_rect: Rect, grab_pos: Pos2 },
-    MovingAnnotation { index: usize, last_pos: Pos2 },
-    RotatingAnnotation { index: usize, center: Pos2, base_angle: f32, grab_angle: f32 },
-    MovingVertex { index: usize, vertex: usize },
+    Creating {
+        start: Pos2,
+    },
+    Moving {
+        original_rect: Rect,
+        grab_offset: Vec2,
+    },
+    Resizing {
+        handle: ResizeHandle,
+        original_rect: Rect,
+        grab_pos: Pos2,
+    },
+    MovingAnnotation {
+        index: usize,
+        last_pos: Pos2,
+    },
+    RotatingAnnotation {
+        index: usize,
+        center: Pos2,
+        base_angle: f32,
+        grab_angle: f32,
+    },
+    MovingVertex {
+        index: usize,
+        vertex: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]

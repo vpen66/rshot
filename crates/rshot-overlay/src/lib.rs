@@ -81,10 +81,8 @@ pub fn launch_overlay() -> Result<(), Box<dyn std::error::Error>> {
             // Dark tooltip / popup chrome matching the toolbar panel.
             let mut style = (*cc.egui_ctx.style()).clone();
             style.visuals.window_fill = egui::Color32::from_rgba_unmultiplied(24, 26, 31, 250);
-            style.visuals.window_stroke = egui::Stroke::new(
-                1.0,
-                egui::Color32::from_white_alpha(40),
-            );
+            style.visuals.window_stroke =
+                egui::Stroke::new(1.0, egui::Color32::from_white_alpha(40));
             style.visuals.window_corner_radius = egui::CornerRadius::same(7);
             cc.egui_ctx.set_style(style);
             Ok(Box::new(OverlayApp::new(

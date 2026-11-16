@@ -172,7 +172,13 @@ pub fn draw(painter: &Painter, icon: Icon, area: Rect, color: Color32, bg: Color
         }
         Icon::Polygon => {
             poly(
-                vec![p(3.0, 12.5), p(4.5, 4.5), p(9.5, 2.8), p(13.2, 7.5), p(9.0, 13.2)],
+                vec![
+                    p(3.0, 12.5),
+                    p(4.5, 4.5),
+                    p(9.5, 2.8),
+                    p(13.2, 7.5),
+                    p(9.0, 13.2),
+                ],
                 w,
             );
         }
@@ -263,7 +269,12 @@ pub fn draw(painter: &Painter, icon: Icon, area: Rect, color: Color32, bg: Color
             );
             let front = Rect::from_min_max(p(2.5, 5.5), p(10.5, 13.5));
             painter.rect_filled(front, 1.5 * s, bg);
-            painter.rect_stroke(front, 1.5 * s, Stroke::new(w * 0.95, color), StrokeKind::Middle);
+            painter.rect_stroke(
+                front,
+                1.5 * s,
+                Stroke::new(w * 0.95, color),
+                StrokeKind::Middle,
+            );
         }
         Icon::Save => {
             poly(

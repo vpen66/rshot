@@ -1,10 +1,10 @@
 use crate::annotation::{
-    paint_gizmo, paint_multi_gizmo, rotation_handle_pos, AnnotationItem, HistoryManager, StrokeWidth,
-    ToolType, COLOR_PRESETS, FAMILIES,
+    AnnotationItem, COLOR_PRESETS, FAMILIES, HistoryManager, StrokeWidth, ToolType, paint_gizmo,
+    paint_multi_gizmo, rotation_handle_pos,
 };
 use crate::magnifier::Magnifier;
 use crate::state::{DragState, ResizeHandle, Selection};
-use crate::toolbar::{Toolbar, ToolbarAction, ToolbarState, FONT_MAX, FONT_MIN};
+use crate::toolbar::{FONT_MAX, FONT_MIN, Toolbar, ToolbarAction, ToolbarState};
 use eframe::egui::{
     self, Color32, CursorIcon, FontId, Key, Modifiers, Painter, Pos2, Rect, RichText, Stroke,
     StrokeKind, Vec2,
@@ -52,11 +52,7 @@ pub struct OverlayApp {
 }
 
 impl OverlayApp {
-    pub fn new(
-        captured_image: RgbaImage,
-        scale_factor: f32,
-        monitor_origin: (f32, f32),
-    ) -> Self {
+    pub fn new(captured_image: RgbaImage, scale_factor: f32, monitor_origin: (f32, f32)) -> Self {
         Self {
             captured_image: Arc::new(captured_image),
             texture: None,
@@ -105,7 +101,8 @@ impl OverlayApp {
         let width = (sel.width() * self.scale_factor).round() as u32;
         let height = (sel.height() * self.scale_factor).round() as u32;
 
-        let mut cropped = ScreenCapture::crop_region(&self.captured_image, min_x, min_y, width, height).ok()?;
+        let mut cropped =
+            ScreenCapture::crop_region(&self.captured_image, min_x, min_y, width, height).ok()?;
 
         // Bake all completed annotations onto the physical image buffer
         for item in self.history.items() {
@@ -131,7 +128,10 @@ impl OverlayApp {
     fn handle_save(&self) {
         if let Some(cropped) = self.get_cropped_selection() {
             match StorageService::save_to_default_dir(&cropped, OutputFormat::Png) {
-                Ok(path) => info!("Screenshot (with annotations) successfully saved to: {}", path.display()),
+                Ok(path) => info!(
+                    "Screenshot (with annotations) successfully saved to: {}",
+                    path.display()
+                ),
                 Err(e) => error!("Failed to save screenshot: {e}"),
             }
         }
@@ -249,7 +249,9 @@ impl OverlayApp {
 
     /// Sets an annotation's rotation, wrapping plain items around their center.
     fn set_annotation_rotation(&mut self, index: usize, angle: f32) {
-        let Some(item) = self.history.item_mut(index) else { return };
+        let Some(item) = self.history.item_mut(index) else {
+            return;
+        };
         match item {
             AnnotationItem::Rotated { angle: a, .. } => *a = angle,
             _ => {
@@ -320,7 +322,11 @@ impl OverlayApp {
         if verts.is_empty() {
             return None;
         }
-        Some(self.active_vertex.unwrap_or(verts.len() - 1).min(verts.len() - 1))
+        Some(
+            self.active_vertex
+                .unwrap_or(verts.len() - 1)
+                .min(verts.len() - 1),
+        )
     }
 
     /// Resumes drawing a committed polyline/polygon from `vertex`: the path up to
@@ -329,10 +335,18 @@ impl OverlayApp {
     /// Esc restores it. Double-clicking the last vertex simply appends to it.
     fn continue_from_vertex(&mut self, vertex: usize) {
         let Some(index) = self.selected else { return };
-        let Some(item) = self.history.items().get(index) else { return };
-        let Some(kind) = item.multi_point_kind() else { return };
-        let Some(verts) = item.editable_vertices() else { return };
-        let Some((color, stroke, filled)) = item.multi_point_style() else { return };
+        let Some(item) = self.history.items().get(index) else {
+            return;
+        };
+        let Some(kind) = item.multi_point_kind() else {
+            return;
+        };
+        let Some(verts) = item.editable_vertices() else {
+            return;
+        };
+        let Some((color, stroke, filled)) = item.multi_point_style() else {
+            return;
+        };
         if vertex >= verts.len() {
             return;
         }
@@ -368,7 +382,8 @@ fn poly_click_finishes(last: Option<(f64, Pos2)>, now: f64, pos: Pos2) -> bool {
 
 /// Small dark guidance badge anchored to the top-right of the selection.
 fn paint_hint_badge(painter: &Painter, sel: Rect, text: &str) {
-    let galley = painter.layout_no_wrap(text.to_string(), FontId::proportional(11.0), Color32::WHITE);
+    let galley =
+        painter.layout_no_wrap(text.to_string(), FontId::proportional(11.0), Color32::WHITE);
     let size = galley.size() + Vec2::new(16.0, 8.0);
     let mut pos = Pos2::new(sel.right() - size.x, sel.top() - size.y - 6.0);
     if pos.y < 4.0 {
@@ -376,7 +391,12 @@ fn paint_hint_badge(painter: &Painter, sel: Rect, text: &str) {
     }
     let r = Rect::from_min_size(pos, size);
     painter.rect_filled(r, 5.0, Color32::from_rgba_unmultiplied(26, 28, 33, 242));
-    painter.rect_stroke(r, 5.0, Stroke::new(1.0, Color32::from_white_alpha(42)), StrokeKind::Inside);
+    painter.rect_stroke(
+        r,
+        5.0,
+        Stroke::new(1.0, Color32::from_white_alpha(42)),
+        StrokeKind::Inside,
+    );
     painter.galley(r.min + Vec2::new(8.0, 4.0), galley, Color32::WHITE);
 }
 
@@ -413,7 +433,10 @@ impl eframe::App for OverlayApp {
                 // 3. Process pointer inputs & hit testing
                 let pointer_pos = ctx.input(|i| i.pointer.interact_pos());
                 let pointer_down = ctx.input(|i| i.pointer.primary_down());
-                let double_clicked = ctx.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
+                let double_clicked = ctx.input(|i| {
+                    i.pointer
+                        .button_double_clicked(egui::PointerButton::Primary)
+                });
                 let pointer_over_widget = ctx.wants_pointer_input();
 
                 // Hover-to-edit: with any drawing tool armed, moving the pointer
@@ -421,7 +444,10 @@ impl eframe::App for OverlayApp {
                 // to switch to the arrow tool and click first. Moving off the
                 // shape (and its gizmo) releases it again. Select keeps its own
                 // click-to-select behaviour below.
-                if self.current_tool != ToolType::Select && self.can_hover_edit() && !pointer_over_widget {
+                if self.current_tool != ToolType::Select
+                    && self.can_hover_edit()
+                    && !pointer_over_widget
+                {
                     match (self.selection, pointer_pos) {
                         (Some(sel), Some(pos)) if sel.to_rect().contains(pos) => {
                             if let Some(idx) = self.hit_annotation(pos) {
@@ -470,7 +496,12 @@ impl eframe::App for OverlayApp {
                     self.active_vertex = None;
                 }
                 if let Some(index) = self.selected {
-                    match self.history.items().get(index).and_then(|i| i.editable_vertices()) {
+                    match self
+                        .history
+                        .items()
+                        .get(index)
+                        .and_then(|i| i.editable_vertices())
+                    {
                         Some(verts) => {
                             if self.active_vertex.is_some_and(|v| v >= verts.len()) {
                                 self.active_vertex = None;
@@ -507,11 +538,18 @@ impl eframe::App for OverlayApp {
                     let cursor = match handle {
                         ResizeHandle::TopLeft | ResizeHandle::BottomRight => CursorIcon::ResizeNwSe,
                         ResizeHandle::TopRight | ResizeHandle::BottomLeft => CursorIcon::ResizeNeSw,
-                        ResizeHandle::TopCenter | ResizeHandle::BottomCenter => CursorIcon::ResizeVertical,
-                        ResizeHandle::LeftCenter | ResizeHandle::RightCenter => CursorIcon::ResizeHorizontal,
+                        ResizeHandle::TopCenter | ResizeHandle::BottomCenter => {
+                            CursorIcon::ResizeVertical
+                        }
+                        ResizeHandle::LeftCenter | ResizeHandle::RightCenter => {
+                            CursorIcon::ResizeHorizontal
+                        }
                     };
                     ctx.set_cursor_icon(cursor);
-                } else if matches!(self.drag_state, DragState::RotatingAnnotation { .. } | DragState::MovingVertex { .. }) {
+                } else if matches!(
+                    self.drag_state,
+                    DragState::RotatingAnnotation { .. } | DragState::MovingVertex { .. }
+                ) {
                     ctx.set_cursor_icon(CursorIcon::Grabbing);
                 } else if self.hover_rotation {
                     ctx.set_cursor_icon(CursorIcon::Grab);
@@ -566,7 +604,8 @@ impl eframe::App for OverlayApp {
                                     } else if let Some(v) = self.hit_vertex(pos) {
                                         if let Some(index) = self.selected {
                                             self.active_vertex = Some(v);
-                                            self.drag_state = DragState::MovingVertex { index, vertex: v };
+                                            self.drag_state =
+                                                DragState::MovingVertex { index, vertex: v };
                                         }
                                     } else if let Some(index) = self.hit_annotation(pos) {
                                         self.selected = Some(index);
@@ -642,10 +681,19 @@ impl eframe::App for OverlayApp {
                                     if let Some(item) = self.history.item_mut(index) {
                                         item.translate(delta);
                                     }
-                                    self.drag_state = DragState::MovingAnnotation { index, last_pos: pos };
+                                    self.drag_state = DragState::MovingAnnotation {
+                                        index,
+                                        last_pos: pos,
+                                    };
                                 }
-                                DragState::RotatingAnnotation { index, center, base_angle, grab_angle } => {
-                                    let mut angle = base_angle + (pos - center).angle() - grab_angle;
+                                DragState::RotatingAnnotation {
+                                    index,
+                                    center,
+                                    base_angle,
+                                    grab_angle,
+                                } => {
+                                    let mut angle =
+                                        base_angle + (pos - center).angle() - grab_angle;
                                     if ctx.input(|i| i.modifiers.shift) {
                                         let step = std::f32::consts::PI / 12.0;
                                         angle = (angle / step).round() * step;
@@ -672,7 +720,9 @@ impl eframe::App for OverlayApp {
                             let color = self.current_color;
 
                             if sel.to_rect().contains(pos) {
-                                if self.draw_start_pos.is_none() && !self.current_tool.is_multi_point() {
+                                if self.draw_start_pos.is_none()
+                                    && !self.current_tool.is_multi_point()
+                                {
                                     self.draw_start_pos = Some(pos);
                                     if self.current_tool == ToolType::Pen
                                         || self.current_tool == ToolType::Highlighter
@@ -831,25 +881,37 @@ impl eframe::App for OverlayApp {
 
                     // Dim top
                     painter.rect_filled(
-                        Rect::from_min_max(screen_rect.left_top(), Pos2::new(screen_rect.right(), rect.top())),
+                        Rect::from_min_max(
+                            screen_rect.left_top(),
+                            Pos2::new(screen_rect.right(), rect.top()),
+                        ),
                         0.0,
                         mask_color,
                     );
                     // Dim bottom
                     painter.rect_filled(
-                        Rect::from_min_max(Pos2::new(screen_rect.left(), rect.bottom()), screen_rect.right_bottom()),
+                        Rect::from_min_max(
+                            Pos2::new(screen_rect.left(), rect.bottom()),
+                            screen_rect.right_bottom(),
+                        ),
                         0.0,
                         mask_color,
                     );
                     // Dim left
                     painter.rect_filled(
-                        Rect::from_min_max(Pos2::new(screen_rect.left(), rect.top()), Pos2::new(rect.left(), rect.bottom())),
+                        Rect::from_min_max(
+                            Pos2::new(screen_rect.left(), rect.top()),
+                            Pos2::new(rect.left(), rect.bottom()),
+                        ),
                         0.0,
                         mask_color,
                     );
                     // Dim right
                     painter.rect_filled(
-                        Rect::from_min_max(Pos2::new(rect.right(), rect.top()), Pos2::new(screen_rect.right(), rect.bottom())),
+                        Rect::from_min_max(
+                            Pos2::new(rect.right(), rect.top()),
+                            Pos2::new(screen_rect.right(), rect.bottom()),
+                        ),
                         0.0,
                         mask_color,
                     );
@@ -886,7 +948,11 @@ impl eframe::App for OverlayApp {
                         badge_pos.y = rect.top() + 6.0;
                     }
                     let badge_rect = Rect::from_min_size(badge_pos, badge_size);
-                    painter.rect_filled(badge_rect, 5.0, Color32::from_rgba_unmultiplied(26, 28, 33, 242));
+                    painter.rect_filled(
+                        badge_rect,
+                        5.0,
+                        Color32::from_rgba_unmultiplied(26, 28, 33, 242),
+                    );
                     painter.rect_stroke(
                         badge_rect,
                         5.0,
@@ -914,13 +980,22 @@ impl eframe::App for OverlayApp {
                     // Edit-mode gizmo: vertex handles for multi-point items,
                     // bbox + corner dots + rotation handle for everything else.
                     if editing {
-                        if let Some(item) = self.selected.and_then(|i| self.history.items().get(i)) {
+                        if let Some(item) = self.selected.and_then(|i| self.history.items().get(i))
+                        {
                             let b = item.bounds();
                             let handle = rotation_handle_pos(b);
                             let hot = self.hover_rotation
                                 || matches!(self.drag_state, DragState::RotatingAnnotation { .. });
                             if let Some(verts) = item.editable_vertices() {
-                                paint_multi_gizmo(painter, b, handle, hot, &verts, self.active_vertex, self.hover_vertex);
+                                paint_multi_gizmo(
+                                    painter,
+                                    b,
+                                    handle,
+                                    hot,
+                                    &verts,
+                                    self.active_vertex,
+                                    self.hover_vertex,
+                                );
                             } else {
                                 paint_gizmo(painter, b, handle, hot);
                             }
@@ -929,8 +1004,17 @@ impl eframe::App for OverlayApp {
 
                     // Guidance while editing the vertices of a selected shape.
                     if editing && self.editing_index.is_none() {
-                        if self.selected.and_then(|i| self.history.items().get(i)).and_then(|i| i.multi_point_kind()).is_some() {
-                            paint_hint_badge(painter, rect, "拖顶点变形 · 双击/回车续画 · Del 删点 · 退格删末点");
+                        if self
+                            .selected
+                            .and_then(|i| self.history.items().get(i))
+                            .and_then(|i| i.multi_point_kind())
+                            .is_some()
+                        {
+                            paint_hint_badge(
+                                painter,
+                                rect,
+                                "拖顶点变形 · 双击/回车续画 · Del 删点 · 退格删末点",
+                            );
                         }
                     }
 
@@ -965,7 +1049,11 @@ impl eframe::App for OverlayApp {
                         preview.render(&clip_painter);
                         for p in &pts {
                             clip_painter.circle_filled(*p, 3.0, Color32::WHITE);
-                            clip_painter.circle_stroke(*p, 3.0, Stroke::new(1.0, self.current_color));
+                            clip_painter.circle_stroke(
+                                *p,
+                                3.0,
+                                Stroke::new(1.0, self.current_color),
+                            );
                         }
                     }
 
@@ -973,12 +1061,14 @@ impl eframe::App for OverlayApp {
                     if let Some(pos) = self.active_text_pos {
                         let box_size = Vec2::new(240.0, self.font_size + 16.0);
                         let text_box_rect = Rect::from_min_size(pos, box_size);
-                        let mut text_ui = ui.new_child(egui::UiBuilder::new().max_rect(text_box_rect));
+                        let mut text_ui =
+                            ui.new_child(egui::UiBuilder::new().max_rect(text_box_rect));
                         let v = &mut text_ui.style_mut().visuals;
                         v.extreme_bg_color = Color32::from_rgba_unmultiplied(26, 28, 33, 242);
                         v.widgets.noninteractive.bg_stroke =
                             Stroke::new(1.0, Color32::from_white_alpha(42));
-                        v.widgets.active.bg_stroke = Stroke::new(1.5, Color32::from_rgb(24, 144, 255));
+                        v.widgets.active.bg_stroke =
+                            Stroke::new(1.5, Color32::from_rgb(24, 144, 255));
                         v.selection.bg_fill = Color32::from_rgba_unmultiplied(24, 144, 255, 90);
                         let response = text_ui.add(
                             egui::TextEdit::singleline(&mut self.active_text_buffer)
@@ -1097,7 +1187,10 @@ impl eframe::App for OverlayApp {
                         return;
                     }
 
-                    if !cmd && (i.key_pressed(Key::P) || i.key_pressed(Key::F3)) && self.selection.is_some() {
+                    if !cmd
+                        && (i.key_pressed(Key::P) || i.key_pressed(Key::F3))
+                        && self.selection.is_some()
+                    {
                         self.handle_pin();
                     }
 
@@ -1202,7 +1295,12 @@ impl eframe::App for OverlayApp {
                             self.poly_points.pop();
                             self.poly_last_click = None;
                         } else if let Some(index) = self.selected {
-                            let multi = self.history.items().get(index).and_then(|it| it.multi_point_kind()).is_some();
+                            let multi = self
+                                .history
+                                .items()
+                                .get(index)
+                                .and_then(|it| it.multi_point_kind())
+                                .is_some();
                             if let Some(v) = self.active_vertex {
                                 if let Some(item) = self.history.item_mut(index) {
                                     item.remove_vertex(v);
@@ -1241,19 +1339,38 @@ mod tests {
         let a = Pos2::new(100.0, 100.0);
         let b = Pos2::new(220.0, 160.0);
         assert!(!poly_click_finishes(None, 1.0, a));
-        assert!(!poly_click_finishes(Some((1.0, a)), 1.1, b), "fast but distant click must add a vertex");
+        assert!(
+            !poly_click_finishes(Some((1.0, a)), 1.1, b),
+            "fast but distant click must add a vertex"
+        );
         assert!(!poly_click_finishes(Some((1.0, a)), 1.35, b));
     }
 
     #[test]
     fn quick_same_spot_click_finishes() {
         let a = Pos2::new(100.0, 100.0);
-        assert!(poly_click_finishes(Some((1.0, a)), 1.2, Pos2::new(103.0, 102.0)));
-        assert!(!poly_click_finishes(Some((1.0, a)), 1.6, a), "slow click adds a vertex");
-        assert!(!poly_click_finishes(Some((1.0, a)), 1.1, Pos2::new(140.0, 100.0)));
+        assert!(poly_click_finishes(
+            Some((1.0, a)),
+            1.2,
+            Pos2::new(103.0, 102.0)
+        ));
+        assert!(
+            !poly_click_finishes(Some((1.0, a)), 1.6, a),
+            "slow click adds a vertex"
+        );
+        assert!(!poly_click_finishes(
+            Some((1.0, a)),
+            1.1,
+            Pos2::new(140.0, 100.0)
+        ));
     }
 
-    fn drive(app: &mut OverlayApp, ctx: &egui::Context, time: f64, events: Vec<egui::Event>) -> egui::FullOutput {
+    fn drive(
+        app: &mut OverlayApp,
+        ctx: &egui::Context,
+        time: f64,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
         let raw = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))),
             time: Some(time),
@@ -1308,7 +1425,13 @@ mod tests {
         let mut app = OverlayApp::new(img, 1.0, (0.0, 0.0));
         let ctx = egui::Context::default();
         let mut t = 1.0;
-        drag(&mut app, &ctx, &mut t, Pos2::new(100.0, 100.0), Pos2::new(500.0, 400.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(100.0, 100.0),
+            Pos2::new(500.0, 400.0),
+        );
         assert!(app.selection.is_some());
         (app, ctx, t)
     }
@@ -1318,7 +1441,13 @@ mod tests {
         let (mut app, ctx, mut t) = seeded_app();
 
         app.current_tool = ToolType::Rectangle;
-        drag(&mut app, &ctx, &mut t, Pos2::new(200.0, 200.0), Pos2::new(300.0, 260.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(200.0, 200.0),
+            Pos2::new(300.0, 260.0),
+        );
         assert_eq!(app.history.len(), 1);
 
         // Re-select the committed rectangle by clicking its top edge.
@@ -1327,9 +1456,18 @@ mod tests {
         assert_eq!(app.selected, Some(0));
 
         // Move it by dragging.
-        drag(&mut app, &ctx, &mut t, Pos2::new(250.0, 200.0), Pos2::new(270.0, 220.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(250.0, 200.0),
+            Pos2::new(270.0, 220.0),
+        );
         let center = app.history.items()[0].bounds().center();
-        assert!((center.x - 270.0).abs() < 1.0 && (center.y - 250.0).abs() < 1.0, "moved by (20,20), got {center:?}");
+        assert!(
+            (center.x - 270.0).abs() < 1.0 && (center.y - 250.0).abs() < 1.0,
+            "moved by (20,20), got {center:?}"
+        );
         assert_eq!(app.selected, Some(0));
 
         // Rotate +90 degrees via the handle above the bounds.
@@ -1340,13 +1478,20 @@ mod tests {
         let target = Pos2::new(c.x + radius, c.y);
         drag(&mut app, &ctx, &mut t, handle, target);
         let angle = app.history.items()[0].rotation();
-        assert!((angle - std::f32::consts::FRAC_PI_2).abs() < 1e-3, "expected 90 deg, got {angle}");
+        assert!(
+            (angle - std::f32::consts::FRAC_PI_2).abs() < 1e-3,
+            "expected 90 deg, got {angle}"
+        );
 
         // Esc deselects, then re-select and Delete removes just this item.
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Escape)]);
         assert_eq!(app.selected, None);
         click(&mut app, &ctx, &mut t, Pos2::new(270.0, 200.0), 0.5);
-        assert_eq!(app.selected, Some(0), "rotated outline still grabbable on its turned edge");
+        assert_eq!(
+            app.selected,
+            Some(0),
+            "rotated outline still grabbable on its turned edge"
+        );
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Delete)]);
         assert!(app.history.is_empty());
         assert_eq!(app.selected, None);
@@ -1357,10 +1502,18 @@ mod tests {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Polygon;
 
-        for p in [Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(250.0, 250.0)] {
+        for p in [
+            Pos2::new(150.0, 150.0),
+            Pos2::new(250.0, 150.0),
+            Pos2::new(250.0, 250.0),
+        ] {
             click(&mut app, &ctx, &mut t, p, 0.05);
         }
-        assert_eq!(app.poly_points.len(), 3, "rapid distant clicks must all become vertices");
+        assert_eq!(
+            app.poly_points.len(),
+            3,
+            "rapid distant clicks must all become vertices"
+        );
         assert!(app.history.is_empty(), "nothing committed yet");
 
         // Quick second click at the same spot finishes the shape.
@@ -1374,14 +1527,31 @@ mod tests {
 
         // The pointer rests on the new polygon: hover-to-edit engages without
         // switching to the arrow tool.
-        drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(250.0, 250.0))]);
+        drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(250.0, 250.0))],
+        );
         t += 0.5;
-        assert_eq!(app.selected, Some(0), "hovering the finished polygon selects it");
+        assert_eq!(
+            app.selected,
+            Some(0),
+            "hovering the finished polygon selects it"
+        );
 
         // Moving off the shape releases it; Esc with nothing pending returns to Select.
-        drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(450.0, 350.0))]);
+        drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(450.0, 350.0))],
+        );
         t += 0.5;
-        assert_eq!(app.selected, None, "hovering empty space releases the shape");
+        assert_eq!(
+            app.selected, None,
+            "hovering empty space releases the shape"
+        );
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Escape)]);
         assert_eq!(app.current_tool, ToolType::Select);
     }
@@ -1390,7 +1560,10 @@ mod tests {
     fn commit_poly_drops_vertices_outside_selection() {
         let img = RgbaImage::from_pixel(800, 600, image::Rgba([40, 40, 40, 255]));
         let mut app = OverlayApp::new(img, 1.0, (0.0, 0.0));
-        app.selection = Some(Selection::new(Pos2::new(100.0, 100.0), Pos2::new(500.0, 400.0)));
+        app.selection = Some(Selection::new(
+            Pos2::new(100.0, 100.0),
+            Pos2::new(500.0, 400.0),
+        ));
         app.poly_points = vec![
             Pos2::new(150.0, 200.0),
             Pos2::new(900.0, 200.0),
@@ -1407,7 +1580,11 @@ mod tests {
         app.selection = None;
         app.poly_points = vec![Pos2::new(10.0, 10.0), Pos2::new(20.0, 10.0)];
         app.commit_poly(ToolType::Polyline);
-        assert_eq!(app.history.len(), 1, "without a selection there is nothing to commit into");
+        assert_eq!(
+            app.history.len(),
+            1,
+            "without a selection there is nothing to commit into"
+        );
         assert!(app.poly_points.is_empty());
     }
 
@@ -1419,7 +1596,11 @@ mod tests {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Polyline;
 
-        for p in [Pos2::new(120.0, 200.0), Pos2::new(300.0, 200.0), Pos2::new(480.0, 200.0)] {
+        for p in [
+            Pos2::new(120.0, 200.0),
+            Pos2::new(300.0, 200.0),
+            Pos2::new(480.0, 200.0),
+        ] {
             click(&mut app, &ctx, &mut t, p, 0.5);
         }
         assert_eq!(app.poly_points.len(), 3);
@@ -1430,9 +1611,18 @@ mod tests {
         assert_eq!(app.history.len(), 1);
 
         // Shrink the selection through its bottom-right handle.
-        drag(&mut app, &ctx, &mut t, Pos2::new(500.0, 400.0), Pos2::new(320.0, 300.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(500.0, 400.0),
+            Pos2::new(320.0, 300.0),
+        );
         let rect = app.selection.unwrap().to_rect();
-        assert_eq!(rect, Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(320.0, 300.0)));
+        assert_eq!(
+            rect,
+            Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(320.0, 300.0))
+        );
 
         let output = drive(&mut app, &ctx, t + 0.5, vec![]);
         let prims = ctx.tessellate(output.shapes, 1.0);
@@ -1440,7 +1630,9 @@ mod tests {
         let allowed = rect.expand(0.5);
         let mut red_vertices = 0usize;
         for prim in &prims {
-            let egui::epaint::Primitive::Mesh(mesh) = &prim.primitive else { continue };
+            let egui::epaint::Primitive::Mesh(mesh) = &prim.primitive else {
+                continue;
+            };
             let count = mesh.vertices.iter().filter(|v| v.color == red).count();
             if count == 0 {
                 continue;
@@ -1456,7 +1648,10 @@ mod tests {
                 rect
             );
         }
-        assert!(red_vertices > 0, "the committed polyline must still render inside the selection");
+        assert!(
+            red_vertices > 0,
+            "the committed polyline must still render inside the selection"
+        );
     }
 
     /// Draws a polyline by clicking vertices, finishes with Enter, then switches
@@ -1479,7 +1674,10 @@ mod tests {
 
     fn polyline_points(app: &OverlayApp) -> Vec<Pos2> {
         let AnnotationItem::Polyline { points, .. } = &app.history.items()[0] else {
-            panic!("expected a committed polyline, got {:?}", app.history.items()[0]);
+            panic!(
+                "expected a committed polyline, got {:?}",
+                app.history.items()[0]
+            );
         };
         points.clone()
     }
@@ -1487,12 +1685,26 @@ mod tests {
     #[test]
     fn vertex_drag_reshapes_polyline() {
         let (mut app, ctx, mut t) = selected_polyline(
-            &[Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(250.0, 250.0)],
+            &[
+                Pos2::new(150.0, 150.0),
+                Pos2::new(250.0, 150.0),
+                Pos2::new(250.0, 250.0),
+            ],
             Pos2::new(200.0, 150.0),
         );
-        drag(&mut app, &ctx, &mut t, Pos2::new(150.0, 150.0), Pos2::new(160.0, 170.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(150.0, 150.0),
+            Pos2::new(160.0, 170.0),
+        );
         let points = polyline_points(&app);
-        assert_eq!(points[0], Pos2::new(160.0, 170.0), "dragged vertex follows the pointer");
+        assert_eq!(
+            points[0],
+            Pos2::new(160.0, 170.0),
+            "dragged vertex follows the pointer"
+        );
         assert_eq!(points.len(), 3, "dragging must not add or drop vertices");
         assert_eq!(app.active_vertex, Some(0));
     }
@@ -1513,37 +1725,65 @@ mod tests {
         assert_eq!(app.active_vertex, Some(3));
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Delete)]);
         t += 0.5;
-        assert_eq!(polyline_points(&app).len(), 3, "Delete removes the active vertex");
+        assert_eq!(
+            polyline_points(&app).len(),
+            3,
+            "Delete removes the active vertex"
+        );
         assert_eq!(app.active_vertex, None);
 
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Backspace)]);
         t += 0.5;
-        assert_eq!(polyline_points(&app).len(), 2, "Backspace removes the last point");
+        assert_eq!(
+            polyline_points(&app).len(),
+            2,
+            "Backspace removes the last point"
+        );
 
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Backspace)]);
-        assert_eq!(polyline_points(&app).len(), 2, "a polyline keeps at least two points");
+        assert_eq!(
+            polyline_points(&app).len(),
+            2,
+            "a polyline keeps at least two points"
+        );
         assert_eq!(app.history.len(), 1, "the shape itself is not deleted");
     }
 
     #[test]
     fn enter_resumes_from_last_vertex_and_extends() {
         let (mut app, ctx, mut t) = selected_polyline(
-            &[Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(250.0, 250.0)],
+            &[
+                Pos2::new(150.0, 150.0),
+                Pos2::new(250.0, 150.0),
+                Pos2::new(250.0, 250.0),
+            ],
             Pos2::new(200.0, 150.0),
         );
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Enter)]);
         t += 0.5;
         assert_eq!(app.current_tool, ToolType::Polyline);
         assert_eq!(app.editing_index, Some(0));
-        assert_eq!(app.poly_points.len(), 3, "resume keeps the whole existing path");
+        assert_eq!(
+            app.poly_points.len(),
+            3,
+            "resume keeps the whole existing path"
+        );
         assert!(app.selected.is_none());
-        assert_eq!(app.history.len(), 1, "original stays in history until committed");
+        assert_eq!(
+            app.history.len(),
+            1,
+            "original stays in history until committed"
+        );
 
         click(&mut app, &ctx, &mut t, Pos2::new(350.0, 300.0), 0.5);
         assert_eq!(app.poly_points.len(), 4, "a new click extends the path");
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Enter)]);
         assert!(app.editing_index.is_none());
-        assert_eq!(app.history.len(), 1, "finishing replaces the original in place");
+        assert_eq!(
+            app.history.len(),
+            1,
+            "finishing replaces the original in place"
+        );
         let points = polyline_points(&app);
         assert_eq!(points.len(), 4);
         assert_eq!(points[3], Pos2::new(350.0, 300.0));
@@ -1565,24 +1805,43 @@ mod tests {
         assert_eq!(app.active_vertex, Some(1));
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Enter)]);
         t += 0.5;
-        assert_eq!(app.poly_points.len(), 2, "path is kept only up to the chosen vertex");
+        assert_eq!(
+            app.poly_points.len(),
+            2,
+            "path is kept only up to the chosen vertex"
+        );
 
         click(&mut app, &ctx, &mut t, Pos2::new(300.0, 300.0), 0.5);
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Enter)]);
         let points = polyline_points(&app);
-        assert_eq!(points, vec![Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(300.0, 300.0)]);
+        assert_eq!(
+            points,
+            vec![
+                Pos2::new(150.0, 150.0),
+                Pos2::new(250.0, 150.0),
+                Pos2::new(300.0, 300.0)
+            ]
+        );
     }
 
     #[test]
     fn double_click_vertex_resumes_and_esc_restores_original() {
         let (mut app, ctx, mut t) = selected_polyline(
-            &[Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(250.0, 250.0)],
+            &[
+                Pos2::new(150.0, 150.0),
+                Pos2::new(250.0, 150.0),
+                Pos2::new(250.0, 250.0),
+            ],
             Pos2::new(200.0, 150.0),
         );
         // Two quick clicks on vertex 1 = double-click -> resume from it.
         click(&mut app, &ctx, &mut t, Pos2::new(250.0, 150.0), 0.5);
         click(&mut app, &ctx, &mut t, Pos2::new(250.0, 150.0), 0.1);
-        assert_eq!(app.editing_index, Some(0), "double-clicking a vertex resumes drawing");
+        assert_eq!(
+            app.editing_index,
+            Some(0),
+            "double-clicking a vertex resumes drawing"
+        );
         assert_eq!(app.poly_points.len(), 2);
         assert_eq!(app.current_tool, ToolType::Polyline);
 
@@ -1592,35 +1851,71 @@ mod tests {
         assert!(app.poly_points.is_empty());
         assert_eq!(app.current_tool, ToolType::Select);
         assert_eq!(app.history.len(), 1);
-        assert_eq!(polyline_points(&app).len(), 3, "Esc must not lose the original shape");
+        assert_eq!(
+            polyline_points(&app).len(),
+            3,
+            "Esc must not lose the original shape"
+        );
     }
 
     #[test]
     fn hover_with_drawing_tool_selects_and_moves_without_arrow() {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Rectangle;
-        drag(&mut app, &ctx, &mut t, Pos2::new(200.0, 200.0), Pos2::new(300.0, 260.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(200.0, 200.0),
+            Pos2::new(300.0, 260.0),
+        );
         assert_eq!(app.history.len(), 1);
         assert_eq!(app.selected, None);
 
         // Hovering the rectangle's edge engages editing while Rectangle stays armed.
-        drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(250.0, 200.0))]);
+        drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(250.0, 200.0))],
+        );
         t += 0.5;
-        assert_eq!(app.selected, Some(0), "hover selects without the arrow tool");
+        assert_eq!(
+            app.selected,
+            Some(0),
+            "hover selects without the arrow tool"
+        );
         assert_eq!(app.current_tool, ToolType::Rectangle);
 
         // Dragging the hovered shape moves it.
-        drag(&mut app, &ctx, &mut t, Pos2::new(250.0, 200.0), Pos2::new(270.0, 220.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(250.0, 200.0),
+            Pos2::new(270.0, 220.0),
+        );
         let center = app.history.items()[0].bounds().center();
-        assert!((center.x - 270.0).abs() < 1.0 && (center.y - 250.0).abs() < 1.0, "moved by (20,20), got {center:?}");
-        assert_eq!(app.current_tool, ToolType::Rectangle, "editing must not switch tools");
+        assert!(
+            (center.x - 270.0).abs() < 1.0 && (center.y - 250.0).abs() < 1.0,
+            "moved by (20,20), got {center:?}"
+        );
+        assert_eq!(
+            app.current_tool,
+            ToolType::Rectangle,
+            "editing must not switch tools"
+        );
     }
 
     #[test]
     fn hover_polyline_vertex_drag_without_arrow() {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Polyline;
-        for p in [Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(250.0, 250.0)] {
+        for p in [
+            Pos2::new(150.0, 150.0),
+            Pos2::new(250.0, 150.0),
+            Pos2::new(250.0, 250.0),
+        ] {
             click(&mut app, &ctx, &mut t, p, 0.5);
         }
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Enter)]);
@@ -1628,12 +1923,27 @@ mod tests {
         assert_eq!(app.history.len(), 1);
 
         // Still on the Polyline tool: hover a vertex and drag to reshape it.
-        drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(150.0, 150.0))]);
+        drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(150.0, 150.0))],
+        );
         t += 0.5;
         assert_eq!(app.selected, Some(0));
-        drag(&mut app, &ctx, &mut t, Pos2::new(150.0, 150.0), Pos2::new(160.0, 170.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(150.0, 150.0),
+            Pos2::new(160.0, 170.0),
+        );
         let points = polyline_points(&app);
-        assert_eq!(points[0], Pos2::new(160.0, 170.0), "hovered vertex follows the pointer");
+        assert_eq!(
+            points[0],
+            Pos2::new(160.0, 170.0),
+            "hovered vertex follows the pointer"
+        );
         assert_eq!(points.len(), 3);
         assert_eq!(app.active_vertex, Some(0));
         assert_eq!(app.current_tool, ToolType::Polyline);
@@ -1643,10 +1953,21 @@ mod tests {
     fn hover_then_delete_removes_shape_without_arrow() {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Rectangle;
-        drag(&mut app, &ctx, &mut t, Pos2::new(200.0, 200.0), Pos2::new(300.0, 260.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(200.0, 200.0),
+            Pos2::new(300.0, 260.0),
+        );
         assert_eq!(app.history.len(), 1);
 
-        drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(250.0, 200.0))]);
+        drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(250.0, 200.0))],
+        );
         t += 0.5;
         assert_eq!(app.selected, Some(0));
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Delete)]);
@@ -1658,15 +1979,36 @@ mod tests {
     fn hover_empty_space_then_drag_still_draws_new_shape() {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Rectangle;
-        drag(&mut app, &ctx, &mut t, Pos2::new(200.0, 200.0), Pos2::new(300.0, 260.0));
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(200.0, 200.0),
+            Pos2::new(300.0, 260.0),
+        );
         assert_eq!(app.history.len(), 1);
 
         // Hovering empty space releases any selection; a drag there draws anew.
-        drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(400.0, 350.0))]);
+        drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(400.0, 350.0))],
+        );
         t += 0.5;
         assert_eq!(app.selected, None);
-        drag(&mut app, &ctx, &mut t, Pos2::new(400.0, 350.0), Pos2::new(450.0, 380.0));
-        assert_eq!(app.history.len(), 2, "drawing on empty space adds a second shape");
+        drag(
+            &mut app,
+            &ctx,
+            &mut t,
+            Pos2::new(400.0, 350.0),
+            Pos2::new(450.0, 380.0),
+        );
+        assert_eq!(
+            app.history.len(),
+            2,
+            "drawing on empty space adds a second shape"
+        );
         assert_eq!(app.current_tool, ToolType::Rectangle);
     }
 
@@ -1674,7 +2016,11 @@ mod tests {
     fn hover_gizmo_renders_only_while_hovering() {
         let (mut app, ctx, mut t) = seeded_app();
         app.current_tool = ToolType::Polyline;
-        for p in [Pos2::new(150.0, 150.0), Pos2::new(250.0, 150.0), Pos2::new(250.0, 250.0)] {
+        for p in [
+            Pos2::new(150.0, 150.0),
+            Pos2::new(250.0, 150.0),
+            Pos2::new(250.0, 250.0),
+        ] {
             click(&mut app, &ctx, &mut t, p, 0.5);
         }
         drive(&mut app, &ctx, t + 0.5, vec![key(Key::Enter)]);
@@ -1684,21 +2030,35 @@ mod tests {
         let vertex = Pos2::new(150.0, 150.0);
         let gizmo_at_vertex = |out: egui::FullOutput| -> bool {
             ctx.tessellate(out.shapes, 1.0).iter().any(|prim| {
-                let egui::epaint::Primitive::Mesh(mesh) = &prim.primitive else { return false };
-                mesh.vertices.iter().any(|v| v.color == accent && v.pos.distance(vertex) <= 10.0)
+                let egui::epaint::Primitive::Mesh(mesh) = &prim.primitive else {
+                    return false;
+                };
+                mesh.vertices
+                    .iter()
+                    .any(|v| v.color == accent && v.pos.distance(vertex) <= 10.0)
             })
         };
 
         // Empty-space hover: no gizmo ink on the vertex.
-        let off = drive(&mut app, &ctx, t + 0.5, vec![moved(Pos2::new(400.0, 350.0))]);
+        let off = drive(
+            &mut app,
+            &ctx,
+            t + 0.5,
+            vec![moved(Pos2::new(400.0, 350.0))],
+        );
         t += 0.5;
         assert_eq!(app.selected, None);
-        assert!(!gizmo_at_vertex(off), "no vertex handle when not hovering the shape");
+        assert!(
+            !gizmo_at_vertex(off),
+            "no vertex handle when not hovering the shape"
+        );
 
         // Hovering the vertex: the gizmo paints an accent handle ring there.
         let on = drive(&mut app, &ctx, t + 0.5, vec![moved(vertex)]);
         assert_eq!(app.selected, Some(0));
-        assert!(gizmo_at_vertex(on), "hovering paints the vertex gizmo without the arrow tool");
+        assert!(
+            gizmo_at_vertex(on),
+            "hovering paints the vertex gizmo without the arrow tool"
+        );
     }
 }
-

@@ -3,10 +3,11 @@
 //! a contextual options popover, vertical separators, and output actions on the
 //! right. The whole panel can be dragged by its grip and double-click reset.
 
-use crate::annotation::{StrokeWidth, ToolFamily, ToolType, COLOR_PRESETS, FAMILIES};
+use crate::annotation::{COLOR_PRESETS, FAMILIES, StrokeWidth, ToolFamily, ToolType};
 use crate::icons::{self, Icon};
 use egui::{
-    Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Ui, Vec2,
+    Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Ui,
+    Vec2,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,8 +90,10 @@ const ROW_W: f32 =
 
 pub const FONT_MIN: f32 = 10.0;
 pub const FONT_MAX: f32 = 72.0;
-pub const MOSAIC_LEVELS: [(u32, &str); 3] = [(6, "细腻 · 6px"), (10, "标准 · 10px"), (16, "粗犷 · 16px")];
-pub const BLUR_LEVELS: [(u32, &str); 3] = [(4, "轻度 · 4px"), (8, "标准 · 8px"), (14, "强烈 · 14px")];
+pub const MOSAIC_LEVELS: [(u32, &str); 3] =
+    [(6, "细腻 · 6px"), (10, "标准 · 10px"), (16, "粗犷 · 16px")];
+pub const BLUR_LEVELS: [(u32, &str); 3] =
+    [(4, "轻度 · 4px"), (8, "标准 · 8px"), (14, "强烈 · 14px")];
 
 /// Places the panel right-aligned below the selection, flipping above (or inside
 /// the selection's bottom edge) when there is no room, always fully on screen.
@@ -174,7 +177,11 @@ fn icon_button(
     enabled: bool,
     danger: bool,
 ) -> egui::Response {
-    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), sense);
     let painter = ui.painter();
     let basis = width.min(height);
@@ -229,7 +236,11 @@ fn grip_handle(ui: &mut Ui) -> egui::Response {
     if resp.dragged() || resp.hovered() || resp.is_pointer_button_down_on() {
         painter.rect_filled(bg, 5.0, HOVER_BG);
     }
-    let color = if resp.dragged() || resp.hovered() { ICON_COLOR } else { ICON_DIM };
+    let color = if resp.dragged() || resp.hovered() {
+        ICON_COLOR
+    } else {
+        ICON_DIM
+    };
     let icon_rect = Rect::from_center_size(rect.center(), Vec2::splat(14.0));
     icons::draw(painter, Icon::Grip, icon_rect, color, PANEL_BG);
     resp.on_hover_ui(|ui| tooltip(ui, "拖动移动 · 双击复位", None))
@@ -257,11 +268,26 @@ fn swatch(ui: &mut Ui, color: Color32, active: bool) -> egui::Response {
         painter.rect_filled(sw.expand(1.5), 6.0, with_alpha(color, 80));
     }
     painter.rect_filled(sw, 5.0, color);
-    painter.rect_stroke(sw, 5.0, Stroke::new(1.0, Color32::from_black_alpha(90)), StrokeKind::Inside);
+    painter.rect_stroke(
+        sw,
+        5.0,
+        Stroke::new(1.0, Color32::from_black_alpha(90)),
+        StrokeKind::Inside,
+    );
     if active {
-        painter.rect_stroke(sw.expand(1.5), 6.0, Stroke::new(1.5, Color32::WHITE), StrokeKind::Outside);
+        painter.rect_stroke(
+            sw.expand(1.5),
+            6.0,
+            Stroke::new(1.5, Color32::WHITE),
+            StrokeKind::Outside,
+        );
     } else if resp.hovered() {
-        painter.rect_stroke(sw.expand(1.0), 5.5, Stroke::new(1.0, Color32::from_white_alpha(120)), StrokeKind::Outside);
+        painter.rect_stroke(
+            sw.expand(1.0),
+            5.5,
+            Stroke::new(1.0, Color32::from_white_alpha(120)),
+            StrokeKind::Outside,
+        );
     }
     resp
 }
@@ -277,7 +303,17 @@ fn color_group(ui: &mut Ui, color: &mut Color32) {
     }
 
     let custom_active = !COLOR_PRESETS.contains(color);
-    let wheel = icon_button(ui, Icon::ColorWheel, ROW2_ITEM, ROW2_ITEM, "自定义颜色", None, custom_active, true, false);
+    let wheel = icon_button(
+        ui,
+        Icon::ColorWheel,
+        ROW2_ITEM,
+        ROW2_ITEM,
+        "自定义颜色",
+        None,
+        custom_active,
+        true,
+        false,
+    );
     if wheel.clicked() {
         // The picker itself is rendered at the toolbar level (see `render`) so it
         // survives egui's single popup slot replacing this tool's options popover.
@@ -329,7 +365,17 @@ fn level_group(ui: &mut Ui, current: &mut u32, levels: [(u32, &str); 3]) {
 }
 
 fn font_stepper(ui: &mut Ui, font_size: &mut f32) {
-    let minus = icon_button(ui, Icon::Minus, ROW2_ITEM, ROW2_ITEM, "减小字号", Some("["), false, *font_size > FONT_MIN, false);
+    let minus = icon_button(
+        ui,
+        Icon::Minus,
+        ROW2_ITEM,
+        ROW2_ITEM,
+        "减小字号",
+        Some("["),
+        false,
+        *font_size > FONT_MIN,
+        false,
+    );
     if minus.clicked() {
         *font_size = (*font_size - 2.0).max(FONT_MIN);
     }
@@ -341,7 +387,17 @@ fn font_stepper(ui: &mut Ui, font_size: &mut f32) {
         FontId::proportional(12.0),
         LABEL,
     );
-    let plus = icon_button(ui, Icon::Plus, ROW2_ITEM, ROW2_ITEM, "增大字号", Some("]"), false, *font_size < FONT_MAX, false);
+    let plus = icon_button(
+        ui,
+        Icon::Plus,
+        ROW2_ITEM,
+        ROW2_ITEM,
+        "增大字号",
+        Some("]"),
+        false,
+        *font_size < FONT_MAX,
+        false,
+    );
     if plus.clicked() {
         *font_size = (*font_size + 2.0).min(FONT_MAX);
     }
@@ -349,7 +405,9 @@ fn font_stepper(ui: &mut Ui, font_size: &mut f32) {
 
 /// One selectable shape/form variant in a popover's first row.
 fn variant_button(ui: &mut Ui, icon: Icon, tip: &str, active: bool) -> egui::Response {
-    icon_button(ui, icon, ROW2_ITEM, ROW2_ITEM, tip, None, active, true, false)
+    icon_button(
+        ui, icon, ROW2_ITEM, ROW2_ITEM, tip, None, active, true, false,
+    )
 }
 
 /// Contextual popover: first row = the family's shape/form variants, second row
@@ -371,10 +429,12 @@ fn tool_options(ui: &mut Ui, family: ToolFamily, fi: usize, state: &mut ToolbarS
         } else if family == ToolFamily::Badge {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(GAP, 0.0);
-                if variant_button(ui, Icon::StepBadge, "圆形序号", !*state.badge_square).clicked() {
+                if variant_button(ui, Icon::StepBadge, "圆形序号", !*state.badge_square).clicked()
+                {
                     *state.badge_square = false;
                 }
-                if variant_button(ui, Icon::BadgeSquare, "方形序号", *state.badge_square).clicked() {
+                if variant_button(ui, Icon::BadgeSquare, "方形序号", *state.badge_square).clicked()
+                {
                     *state.badge_square = true;
                 }
             });
@@ -396,7 +456,17 @@ fn tool_options(ui: &mut Ui, family: ToolFamily, fi: usize, state: &mut ToolbarS
                     stroke_group(ui, state.stroke);
                     if state.tool.can_fill() {
                         divider(ui, ROW2_ITEM);
-                        let resp = icon_button(ui, Icon::Fill, ROW2_ITEM, ROW2_ITEM, "填充", Some("F"), *state.filled, true, false);
+                        let resp = icon_button(
+                            ui,
+                            Icon::Fill,
+                            ROW2_ITEM,
+                            ROW2_ITEM,
+                            "填充",
+                            Some("F"),
+                            *state.filled,
+                            true,
+                            false,
+                        );
                         if resp.clicked() {
                             *state.filled = !*state.filled;
                         }
@@ -418,6 +488,11 @@ impl Toolbar {
         state: &mut ToolbarState,
     ) -> Option<ToolbarAction> {
         let mut action = None;
+        // 弹层铬色固定深色、与面板一致；否则宿主 egui 浅色样式会白底配浅图标，看不清。
+        let visuals = &mut ui.style_mut().visuals;
+        visuals.dark_mode = true;
+        visuals.window_fill = Color32::from_rgba_unmultiplied(24, 26, 31, 250);
+        visuals.window_stroke = Stroke::new(1.0, Color32::from_white_alpha(40));
         let default = panel_rect(selection_rect, screen_size, ROW_W, HEIGHT);
         let panel = match *state.position {
             Some(p) => Rect::from_min_size(
@@ -428,10 +503,23 @@ impl Toolbar {
         };
 
         let painter = ui.painter();
-        painter.rect_filled(panel.expand(3.0), RADIUS + 3.0, Color32::from_black_alpha(36));
-        painter.rect_filled(panel.expand(1.5), RADIUS + 1.5, Color32::from_black_alpha(48));
+        painter.rect_filled(
+            panel.expand(3.0),
+            RADIUS + 3.0,
+            Color32::from_black_alpha(36),
+        );
+        painter.rect_filled(
+            panel.expand(1.5),
+            RADIUS + 1.5,
+            Color32::from_black_alpha(48),
+        );
         painter.rect_filled(panel, RADIUS, PANEL_BG);
-        painter.rect_stroke(panel, RADIUS, Stroke::new(1.0, PANEL_BORDER), StrokeKind::Inside);
+        painter.rect_stroke(
+            panel,
+            RADIUS,
+            Stroke::new(1.0, PANEL_BORDER),
+            StrokeKind::Inside,
+        );
 
         // Inset child so the first widget lands exactly at panel.min + padding.
         let inner = panel.shrink2(Vec2::new(PAD_X, PAD_Y));
@@ -475,8 +563,18 @@ impl Toolbar {
             let icon = family_icon(family, variant, *state.badge_square);
             // Icon and caret are direct siblings (no nested horizontal): nesting
             // expands the parent cursor and makes each group sink lower.
-            if icon_button(&mut child, icon, BTN, ROW_H, family.name(), Some(variant.hotkey()), active, true, false)
-                .clicked()
+            if icon_button(
+                &mut child,
+                icon,
+                BTN,
+                ROW_H,
+                family.name(),
+                Some(variant.hotkey()),
+                active,
+                true,
+                false,
+            )
+            .clicked()
             {
                 *state.tool = variant;
             }
@@ -499,36 +597,126 @@ impl Toolbar {
 
         divider(&mut child, ROW_H);
 
-        if icon_button(&mut child, Icon::Undo, ACTION, ROW_H, "撤销", Some("⌘Z"), false, state.can_undo, false).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Undo,
+            ACTION,
+            ROW_H,
+            "撤销",
+            Some("⌘Z"),
+            false,
+            state.can_undo,
+            false,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Undo);
         }
-        if icon_button(&mut child, Icon::Redo, ACTION, ROW_H, "重做", Some("⇧⌘Z"), false, state.can_redo, false).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Redo,
+            ACTION,
+            ROW_H,
+            "重做",
+            Some("⇧⌘Z"),
+            false,
+            state.can_redo,
+            false,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Redo);
         }
-        if icon_button(&mut child, Icon::Trash, ACTION, ROW_H, "清空标注", Some("Del"), false, state.can_clear, false).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Trash,
+            ACTION,
+            ROW_H,
+            "清空标注",
+            Some("Del"),
+            false,
+            state.can_clear,
+            false,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Clear);
         }
 
         divider(&mut child, ROW_H);
 
-        if icon_button(&mut child, Icon::Pin, ACTION, ROW_H, "贴图", Some("P"), false, true, false).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Pin,
+            ACTION,
+            ROW_H,
+            "贴图",
+            Some("P"),
+            false,
+            true,
+            false,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Pin);
         }
-        if icon_button(&mut child, Icon::Copy, ACTION, ROW_H, "复制", Some("⏎"), false, true, false).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Copy,
+            ACTION,
+            ROW_H,
+            "复制",
+            Some("⏎"),
+            false,
+            true,
+            false,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Copy);
         }
-        if icon_button(&mut child, Icon::Save, ACTION, ROW_H, "保存", Some("⌘S"), false, true, false).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Save,
+            ACTION,
+            ROW_H,
+            "保存",
+            Some("⌘S"),
+            false,
+            true,
+            false,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Save);
         }
-        if icon_button(&mut child, Icon::Close, ACTION, ROW_H, "取消", Some("Esc"), false, true, true).clicked() {
+        if icon_button(
+            &mut child,
+            Icon::Close,
+            ACTION,
+            ROW_H,
+            "取消",
+            Some("Esc"),
+            false,
+            true,
+            true,
+        )
+        .clicked()
+        {
             action = Some(ToolbarAction::Cancel);
         }
 
         // Custom color picker floats at the toolbar level so it stays open even
         // after the single popup slot replaces the tool options popover.
         let picker_id = egui::Id::new("rshot_custom_color");
-        if let Some(anchor) = child.data(|d| d.get_temp::<Rect>(egui::Id::new("rshot_custom_color_anchor"))) {
-            let anchor_resp = child.interact(anchor, egui::Id::new("rshot_custom_color_anchor"), Sense::hover());
+        if let Some(anchor) =
+            child.data(|d| d.get_temp::<Rect>(egui::Id::new("rshot_custom_color_anchor")))
+        {
+            let anchor_resp = child.interact(
+                anchor,
+                egui::Id::new("rshot_custom_color_anchor"),
+                Sense::hover(),
+            );
             let mut picked = *state.color;
             egui::popup_below_widget(
                 &child,
@@ -536,7 +724,11 @@ impl Toolbar {
                 &anchor_resp,
                 egui::PopupCloseBehavior::CloseOnClickOutside,
                 |ui| {
-                    egui::color_picker::color_picker_color32(ui, &mut picked, egui::color_picker::Alpha::Opaque);
+                    egui::color_picker::color_picker_color32(
+                        ui,
+                        &mut picked,
+                        egui::color_picker::Alpha::Opaque,
+                    );
                 },
             );
             *state.color = picked;
@@ -610,7 +802,10 @@ mod tests {
 
     /// Output action `k`: 0 pin, 1 copy, 2 save, 3 close.
     fn output_center(panel: Rect, k: usize) -> Pos2 {
-        Pos2::new(output_start(panel) + k as f32 * (ACTION + GAP) + ACTION / 2.0, row_y(panel))
+        Pos2::new(
+            output_start(panel) + k as f32 * (ACTION + GAP) + ACTION / 2.0,
+            row_y(panel),
+        )
     }
 
     struct Harness {
@@ -655,29 +850,45 @@ mod tests {
                 ..Default::default()
             };
             let sel = selection();
-            let Self { ctx, tool, color, stroke, filled, font_size, mosaic_block, blur_radius, position, family_tool, badge_square, options_family, action } = self;
+            let Self {
+                ctx,
+                tool,
+                color,
+                stroke,
+                filled,
+                font_size,
+                mosaic_block,
+                blur_radius,
+                position,
+                family_tool,
+                badge_square,
+                options_family,
+                action,
+            } = self;
             ctx.run(input, |ctx| {
-                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
-                    let mut state = ToolbarState {
-                        tool,
-                        color,
-                        stroke,
-                        filled,
-                        font_size,
-                        mosaic_block,
-                        blur_radius,
-                        position,
-                        family_tool,
-                        badge_square,
-                        can_undo: true,
-                        can_redo: true,
-                        can_clear: true,
-                    };
-                    match options_family {
-                        Some(fam) => tool_options(ui, *fam, fam.index(), &mut state),
-                        None => *action = Toolbar::render(ui, sel, screen(), &mut state),
-                    }
-                });
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ctx, |ui| {
+                        let mut state = ToolbarState {
+                            tool,
+                            color,
+                            stroke,
+                            filled,
+                            font_size,
+                            mosaic_block,
+                            blur_radius,
+                            position,
+                            family_tool,
+                            badge_square,
+                            can_undo: true,
+                            can_redo: true,
+                            can_clear: true,
+                        };
+                        match options_family {
+                            Some(fam) => tool_options(ui, *fam, fam.index(), &mut state),
+                            None => *action = Toolbar::render(ui, sel, screen(), &mut state),
+                        }
+                    });
             })
         }
 
@@ -730,8 +941,14 @@ mod tests {
         ];
         for sel in cases {
             let r = panel_rect(sel, screen(), ROW_W, HEIGHT);
-            assert!(r.left() >= MARGIN && r.right() <= screen().x - MARGIN, "{sel:?} -> {r:?}");
-            assert!(r.top() >= MARGIN && r.bottom() <= screen().y - MARGIN, "{sel:?} -> {r:?}");
+            assert!(
+                r.left() >= MARGIN && r.right() <= screen().x - MARGIN,
+                "{sel:?} -> {r:?}"
+            );
+            assert!(
+                r.top() >= MARGIN && r.bottom() <= screen().y - MARGIN,
+                "{sel:?} -> {r:?}"
+            );
         }
     }
 
@@ -747,7 +964,10 @@ mod tests {
             let tool = family.default_tool();
             let mut h = Harness::new(tool);
             let out = h.pass(vec![]);
-            assert!(out.shapes.len() > 20, "{tool:?} should paint a full toolbar");
+            assert!(
+                out.shapes.len() > 20,
+                "{tool:?} should paint a full toolbar"
+            );
         }
     }
 
@@ -771,10 +991,69 @@ mod tests {
             let mut h = Harness::new(ToolType::Select);
             let baseline = h.pass(vec![]).shapes.len();
             h.click(tool_caret_center(default_panel(), i));
-            assert_eq!(h.tool, FAMILIES[i].default_tool(), "caret {i} should select its family");
+            assert_eq!(
+                h.tool,
+                FAMILIES[i].default_tool(),
+                "caret {i} should select its family"
+            );
             let out = h.pass(vec![]);
-            assert!(out.shapes.len() > baseline, "caret {i} should open an options popover");
+            assert!(
+                out.shapes.len() > baseline,
+                "caret {i} should open an options popover"
+            );
         }
+    }
+
+    #[test]
+    fn popover_chrome_stays_dark_under_light_host_style() {
+        let ctx = egui::Context::default();
+        ctx.set_style(std::sync::Arc::new(egui::Style {
+            visuals: egui::Visuals::light(),
+            ..Default::default()
+        }));
+        let mut tool = FAMILIES[1].default_tool();
+        let mut color = COLOR_PRESETS[0];
+        let mut stroke = StrokeWidth::Medium;
+        let mut filled = false;
+        let mut font_size = 18.0;
+        let mut mosaic_block = 10;
+        let mut blur_radius = 8;
+        let mut position = None;
+        let mut family_tool = std::array::from_fn(|i| FAMILIES[i].default_tool());
+        let mut badge_square = false;
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, screen())),
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ctx, |ui| {
+                    let mut state = ToolbarState {
+                        tool: &mut tool,
+                        color: &mut color,
+                        stroke: &mut stroke,
+                        filled: &mut filled,
+                        font_size: &mut font_size,
+                        mosaic_block: &mut mosaic_block,
+                        blur_radius: &mut blur_radius,
+                        position: &mut position,
+                        family_tool: &mut family_tool,
+                        badge_square: &mut badge_square,
+                        can_undo: true,
+                        can_redo: true,
+                        can_clear: true,
+                    };
+                    Toolbar::render(ui, selection(), screen(), &mut state);
+                    // egui Frame::popup reads the parent ui style, so this is the popover chrome.
+                    let v = &ui.style().visuals;
+                    assert!(v.dark_mode, "toolbar ui must force dark mode for popovers");
+                    assert_eq!(
+                        v.window_fill,
+                        Color32::from_rgba_unmultiplied(24, 26, 31, 250)
+                    );
+                });
+        });
     }
 
     #[test]
@@ -785,7 +1064,10 @@ mod tests {
         h.drag(grip_center(panel), delta);
         let moved = h.position.expect("grip drag should store a position");
         let expected = clamp_pos(panel.min + delta, screen(), ROW_W, HEIGHT);
-        assert!((moved - expected).length() < 1.0, "moved {moved:?} expected {expected:?}");
+        assert!(
+            (moved - expected).length() < 1.0,
+            "moved {moved:?} expected {expected:?}"
+        );
     }
 
     #[test]
@@ -797,7 +1079,10 @@ mod tests {
         h.drag(grip_center(custom), delta);
         let moved = h.position.expect("position should remain set");
         let expected = clamp_pos(custom.min + delta, screen(), ROW_W, HEIGHT);
-        assert!((moved - expected).length() < 1.0, "moved {moved:?} expected {expected:?}");
+        assert!(
+            (moved - expected).length() < 1.0,
+            "moved {moved:?} expected {expected:?}"
+        );
     }
 
     #[test]
@@ -828,8 +1113,17 @@ mod tests {
             }
             assert!(ymin.is_finite(), "no icon painted at {c:?}");
             let cy = (ymin + ymax) / 2.0;
-            assert!((cy - row_y(panel)).abs() <= 2.0, "icon x={} center {cy} vs row {}", c.x, row_y(panel));
-            assert!(ymin >= panel.top() && ymax <= panel.bottom(), "icon x={} overflows panel [{ymin},{ymax}]", c.x);
+            assert!(
+                (cy - row_y(panel)).abs() <= 2.0,
+                "icon x={} center {cy} vs row {}",
+                c.x,
+                row_y(panel)
+            );
+            assert!(
+                ymin >= panel.top() && ymax <= panel.bottom(),
+                "icon x={} overflows panel [{ymin},{ymax}]",
+                c.x
+            );
         }
     }
 

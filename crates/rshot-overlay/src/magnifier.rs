@@ -1,6 +1,4 @@
-use egui::{
-    Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2,
-};
+use egui::{Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
 use image::RgbaImage;
 
 /// Magnifier loupe rendering service.
@@ -54,7 +52,8 @@ impl Magnifier {
             loupe_y = cursor_pos.y - loupe_h - 20.0;
         }
 
-        let loupe_rect = Rect::from_min_size(Pos2::new(loupe_x, loupe_y), Vec2::new(loupe_w, loupe_h));
+        let loupe_rect =
+            Rect::from_min_size(Pos2::new(loupe_x, loupe_y), Vec2::new(loupe_w, loupe_h));
 
         // Draw shadow and background container
         painter.rect(
@@ -127,7 +126,12 @@ impl Magnifier {
             2.0,
             Color32::from_rgb(center_pixel[0], center_pixel[1], center_pixel[2]),
         );
-        painter.rect_stroke(color_preview_rect, 2.0, Stroke::new(1.0, Color32::WHITE), StrokeKind::Middle);
+        painter.rect_stroke(
+            color_preview_rect,
+            2.0,
+            Stroke::new(1.0, Color32::WHITE),
+            StrokeKind::Middle,
+        );
 
         painter.text(
             Pos2::new(loupe_x + 24.0, text_y + 2.0),

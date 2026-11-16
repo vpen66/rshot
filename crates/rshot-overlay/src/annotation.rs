@@ -1,6 +1,4 @@
-use egui::{
-    Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2,
-};
+use egui::{Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
 use image::{Rgba, RgbaImage};
 use rshot_core::ImageProcessor;
 
@@ -142,17 +140,25 @@ impl ToolType {
     pub fn can_fill(&self) -> bool {
         matches!(
             self,
-            ToolType::Rectangle | ToolType::RoundedRect | ToolType::Ellipse | ToolType::Diamond | ToolType::Polygon
+            ToolType::Rectangle
+                | ToolType::RoundedRect
+                | ToolType::Ellipse
+                | ToolType::Diamond
+                | ToolType::Polygon
         )
     }
 
     pub fn family(&self) -> ToolFamily {
         match self {
             ToolType::Select => ToolFamily::Select,
-            ToolType::Rectangle | ToolType::RoundedRect | ToolType::Ellipse | ToolType::Diamond | ToolType::Polygon => {
-                ToolFamily::Shapes
+            ToolType::Rectangle
+            | ToolType::RoundedRect
+            | ToolType::Ellipse
+            | ToolType::Diamond
+            | ToolType::Polygon => ToolFamily::Shapes,
+            ToolType::Arrow | ToolType::DoubleArrow | ToolType::Line | ToolType::Polyline => {
+                ToolFamily::Lines
             }
-            ToolType::Arrow | ToolType::DoubleArrow | ToolType::Line | ToolType::Polyline => ToolFamily::Lines,
             ToolType::Pen | ToolType::Highlighter => ToolFamily::Brush,
             ToolType::Mosaic => ToolFamily::Mosaic,
             ToolType::Blur => ToolFamily::Blur,
@@ -197,15 +203,15 @@ impl StrokeWidth {
 
 /// Color presets available in toolbar.
 pub const COLOR_PRESETS: &[Color32] = &[
-    Color32::from_rgb(245, 34, 45),   // Red
-    Color32::from_rgb(250, 140, 22),  // Orange
-    Color32::from_rgb(250, 219, 20),  // Yellow
-    Color32::from_rgb(82, 196, 26),   // Green
-    Color32::from_rgb(19, 194, 194),  // Cyan
-    Color32::from_rgb(24, 144, 255),  // Blue
-    Color32::from_rgb(114, 46, 209),  // Purple
-    Color32::WHITE,                   // White
-    Color32::BLACK,                   // Black
+    Color32::from_rgb(245, 34, 45),  // Red
+    Color32::from_rgb(250, 140, 22), // Orange
+    Color32::from_rgb(250, 219, 20), // Yellow
+    Color32::from_rgb(82, 196, 26),  // Green
+    Color32::from_rgb(19, 194, 194), // Cyan
+    Color32::from_rgb(24, 144, 255), // Blue
+    Color32::from_rgb(114, 46, 209), // Purple
+    Color32::WHITE,                  // White
+    Color32::BLACK,                  // Black
 ];
 
 /// A single annotation primitive.
@@ -330,7 +336,10 @@ fn arrow_head(painter: &Painter, from: Pos2, tip: Pos2, stroke_width: f32, color
     let head_len = (stroke_width * 4.0).clamp(14.0, 30.0);
     let angle = dy.atan2(dx);
     let head_angle = 28.0f32.to_radians();
-    for side in [std::f32::consts::PI - head_angle, std::f32::consts::PI + head_angle] {
+    for side in [
+        std::f32::consts::PI - head_angle,
+        std::f32::consts::PI + head_angle,
+    ] {
         let a = angle + side;
         let wing = Pos2::new(tip.x + head_len * a.cos(), tip.y + head_len * a.sin());
         painter.line_segment([tip, wing], Stroke::new(stroke_width, color));
@@ -357,10 +366,26 @@ fn rounded_rect_points(rect: Rect, radius: f32) -> Vec<Pos2> {
     let r = radius.min(rect.width() / 2.0).min(rect.height() / 2.0);
     let mut pts = Vec::new();
     let corners = [
-        (Pos2::new(rect.right() - r, rect.top() + r), -std::f32::consts::FRAC_PI_2, 0.0),
-        (Pos2::new(rect.right() - r, rect.bottom() - r), 0.0, std::f32::consts::FRAC_PI_2),
-        (Pos2::new(rect.left() + r, rect.bottom() - r), std::f32::consts::FRAC_PI_2, std::f32::consts::PI),
-        (Pos2::new(rect.left() + r, rect.top() + r), std::f32::consts::PI, std::f32::consts::PI * 1.5),
+        (
+            Pos2::new(rect.right() - r, rect.top() + r),
+            -std::f32::consts::FRAC_PI_2,
+            0.0,
+        ),
+        (
+            Pos2::new(rect.right() - r, rect.bottom() - r),
+            0.0,
+            std::f32::consts::FRAC_PI_2,
+        ),
+        (
+            Pos2::new(rect.left() + r, rect.bottom() - r),
+            std::f32::consts::FRAC_PI_2,
+            std::f32::consts::PI,
+        ),
+        (
+            Pos2::new(rect.left() + r, rect.top() + r),
+            std::f32::consts::PI,
+            std::f32::consts::PI * 1.5,
+        ),
     ];
     for (c, a0, a1) in corners {
         for i in 0..=6 {
@@ -386,7 +411,13 @@ fn ellipse_points(rect: Rect) -> Vec<Pos2> {
 pub fn text_size_est(text: &str, font_size: f32) -> Vec2 {
     let w: f32 = text
         .chars()
-        .map(|ch| if ch as u32 > 0x2e80 { font_size } else { font_size * 0.55 })
+        .map(|ch| {
+            if ch as u32 > 0x2e80 {
+                font_size
+            } else {
+                font_size * 0.55
+            }
+        })
         .sum();
     Vec2::new(w.max(font_size * 0.5), font_size * 1.25)
 }
@@ -450,12 +481,30 @@ fn sample_premul(img: &RgbaImage, x: f32, y: f32) -> Option<[f32; 4]> {
 pub fn paint_gizmo(painter: &Painter, bounds: Rect, handle: Pos2, handle_hot: bool) {
     let accent = Color32::from_rgb(24, 144, 255);
     painter.rect_stroke(bounds, 2.0, Stroke::new(1.5, accent), StrokeKind::Outside);
-    for c in [bounds.left_top(), bounds.right_top(), bounds.left_bottom(), bounds.right_bottom()] {
-        painter.rect_filled(Rect::from_center_size(c, Vec2::splat(6.0)), 1.0, Color32::WHITE);
-        painter.rect_stroke(Rect::from_center_size(c, Vec2::splat(6.0)), 1.0, Stroke::new(1.0, accent), StrokeKind::Inside);
+    for c in [
+        bounds.left_top(),
+        bounds.right_top(),
+        bounds.left_bottom(),
+        bounds.right_bottom(),
+    ] {
+        painter.rect_filled(
+            Rect::from_center_size(c, Vec2::splat(6.0)),
+            1.0,
+            Color32::WHITE,
+        );
+        painter.rect_stroke(
+            Rect::from_center_size(c, Vec2::splat(6.0)),
+            1.0,
+            Stroke::new(1.0, accent),
+            StrokeKind::Inside,
+        );
     }
     painter.line_segment([bounds.center_top(), handle], Stroke::new(1.0, accent));
-    let (fill, ring) = if handle_hot { (accent, Color32::WHITE) } else { (Color32::WHITE, accent) };
+    let (fill, ring) = if handle_hot {
+        (accent, Color32::WHITE)
+    } else {
+        (Color32::WHITE, accent)
+    };
     painter.circle_filled(handle, 5.0, fill);
     painter.circle_stroke(handle, 5.0, Stroke::new(1.5, ring));
 }
@@ -477,17 +526,36 @@ pub fn paint_multi_gizmo(
     hover: Option<usize>,
 ) {
     let accent = Color32::from_rgb(24, 144, 255);
-    painter.rect_stroke(bounds, 2.0, Stroke::new(1.0, accent.gamma_multiply(0.65)), StrokeKind::Outside);
+    painter.rect_stroke(
+        bounds,
+        2.0,
+        Stroke::new(1.0, accent.gamma_multiply(0.65)),
+        StrokeKind::Outside,
+    );
     painter.line_segment([bounds.center_top(), handle], Stroke::new(1.0, accent));
-    let (fill, ring) = if handle_hot { (accent, Color32::WHITE) } else { (Color32::WHITE, accent) };
+    let (fill, ring) = if handle_hot {
+        (accent, Color32::WHITE)
+    } else {
+        (Color32::WHITE, accent)
+    };
     painter.circle_filled(handle, 5.0, fill);
     painter.circle_stroke(handle, 5.0, Stroke::new(1.5, ring));
 
     for (i, v) in vertices.iter().enumerate() {
         let is_active = active == Some(i);
         let is_hover = hover == Some(i);
-        let r = if is_active { 6.5 } else if is_hover { 6.0 } else { 5.0 };
-        let (fill, ring) = if is_active { (accent, Color32::WHITE) } else { (Color32::WHITE, accent) };
+        let r = if is_active {
+            6.5
+        } else if is_hover {
+            6.0
+        } else {
+            5.0
+        };
+        let (fill, ring) = if is_active {
+            (accent, Color32::WHITE)
+        } else {
+            (Color32::WHITE, accent)
+        };
         painter.circle_filled(*v, r, fill);
         painter.circle_stroke(*v, r, Stroke::new(1.5, ring));
         if is_active {
@@ -500,36 +568,84 @@ impl AnnotationItem {
     /// Axis-aligned extent in logical coordinates, including stroke and arrow heads.
     pub fn bounds(&self) -> Rect {
         match self {
-            AnnotationItem::Rectangle { rect, stroke_width, .. }
-            | AnnotationItem::RoundedRect { rect, stroke_width, .. }
-            | AnnotationItem::Ellipse { rect, stroke_width, .. }
-            | AnnotationItem::Diamond { rect, stroke_width, .. } => rect.expand(stroke_width / 2.0 + 1.0),
-            AnnotationItem::Mosaic { rect, .. } | AnnotationItem::Blur { rect, .. } => rect.expand(1.0),
-            AnnotationItem::Arrow { start, end, stroke_width, .. }
-            | AnnotationItem::DoubleArrow { start, end, stroke_width, .. }
-            | AnnotationItem::Line { start, end, stroke_width, .. } => {
+            AnnotationItem::Rectangle {
+                rect, stroke_width, ..
+            }
+            | AnnotationItem::RoundedRect {
+                rect, stroke_width, ..
+            }
+            | AnnotationItem::Ellipse {
+                rect, stroke_width, ..
+            }
+            | AnnotationItem::Diamond {
+                rect, stroke_width, ..
+            } => rect.expand(stroke_width / 2.0 + 1.0),
+            AnnotationItem::Mosaic { rect, .. } | AnnotationItem::Blur { rect, .. } => {
+                rect.expand(1.0)
+            }
+            AnnotationItem::Arrow {
+                start,
+                end,
+                stroke_width,
+                ..
+            }
+            | AnnotationItem::DoubleArrow {
+                start,
+                end,
+                stroke_width,
+                ..
+            }
+            | AnnotationItem::Line {
+                start,
+                end,
+                stroke_width,
+                ..
+            } => {
                 let head = (stroke_width * 4.0).clamp(14.0, 30.0);
                 Rect::from_two_pos(*start, *end).expand(stroke_width / 2.0 + head)
             }
-            AnnotationItem::Pen { points, stroke_width, .. } | AnnotationItem::Polyline { points, stroke_width, .. } => {
-                points_bounds(points).expand(stroke_width / 2.0 + 1.0)
+            AnnotationItem::Pen {
+                points,
+                stroke_width,
+                ..
             }
-            AnnotationItem::Highlighter { points, stroke_width, .. } => {
-                points_bounds(points).expand(stroke_width * 1.5 + 1.0)
-            }
-            AnnotationItem::Polygon { points, stroke_width, .. } => {
-                points_bounds(points).expand(stroke_width / 2.0 + 1.0)
-            }
-            AnnotationItem::Text { pos, text, font_size, .. } => {
-                Rect::from_min_size(*pos, text_size_est(text, *font_size)).expand(2.0)
-            }
+            | AnnotationItem::Polyline {
+                points,
+                stroke_width,
+                ..
+            } => points_bounds(points).expand(stroke_width / 2.0 + 1.0),
+            AnnotationItem::Highlighter {
+                points,
+                stroke_width,
+                ..
+            } => points_bounds(points).expand(stroke_width * 1.5 + 1.0),
+            AnnotationItem::Polygon {
+                points,
+                stroke_width,
+                ..
+            } => points_bounds(points).expand(stroke_width / 2.0 + 1.0),
+            AnnotationItem::Text {
+                pos,
+                text,
+                font_size,
+                ..
+            } => Rect::from_min_size(*pos, text_size_est(text, *font_size)).expand(2.0),
             AnnotationItem::StepBadge { pos, radius, .. } => {
                 Rect::from_center_size(*pos, Vec2::splat(radius * 2.0 + 4.0))
             }
-            AnnotationItem::Rotated { item, angle, center } => {
+            AnnotationItem::Rotated {
+                item,
+                angle,
+                center,
+            } => {
                 let (sin, cos) = angle.sin_cos();
                 let b = item.bounds();
-                let corners = [b.left_top(), b.right_top(), b.left_bottom(), b.right_bottom()];
+                let corners = [
+                    b.left_top(),
+                    b.right_top(),
+                    b.left_bottom(),
+                    b.right_bottom(),
+                ];
                 let mut r = Rect::from_min_max(
                     rot_pos(corners[0], *center, sin, cos),
                     rot_pos(corners[0], *center, sin, cos),
@@ -565,7 +681,9 @@ impl AnnotationItem {
                     *p += delta;
                 }
             }
-            AnnotationItem::Text { pos, .. } | AnnotationItem::StepBadge { pos, .. } => *pos += delta,
+            AnnotationItem::Text { pos, .. } | AnnotationItem::StepBadge { pos, .. } => {
+                *pos += delta
+            }
             AnnotationItem::Rotated { item, center, .. } => {
                 item.translate(delta);
                 *center += delta;
@@ -576,42 +694,107 @@ impl AnnotationItem {
     /// Whether `p` grabs this annotation; `tol` is extra grab tolerance in points.
     pub fn hit_test(&self, p: Pos2, tol: f32) -> bool {
         match self {
-            AnnotationItem::Rectangle { rect, stroke_width, filled, .. }
-            | AnnotationItem::RoundedRect { rect, stroke_width, filled, .. }
-            | AnnotationItem::Ellipse { rect, stroke_width, filled, .. }
-            | AnnotationItem::Diamond { rect, stroke_width, filled, .. } => {
+            AnnotationItem::Rectangle {
+                rect,
+                stroke_width,
+                filled,
+                ..
+            }
+            | AnnotationItem::RoundedRect {
+                rect,
+                stroke_width,
+                filled,
+                ..
+            }
+            | AnnotationItem::Ellipse {
+                rect,
+                stroke_width,
+                filled,
+                ..
+            }
+            | AnnotationItem::Diamond {
+                rect,
+                stroke_width,
+                filled,
+                ..
+            } => {
                 if *filled {
                     rect.expand(tol).contains(p)
                 } else {
                     let outer = rect.expand(stroke_width / 2.0 + tol);
                     let inner = rect.shrink(stroke_width / 2.0 + tol);
-                    outer.contains(p) && !(inner.width() > 0.0 && inner.height() > 0.0 && inner.contains(p))
+                    outer.contains(p)
+                        && !(inner.width() > 0.0 && inner.height() > 0.0 && inner.contains(p))
                 }
             }
-            AnnotationItem::Mosaic { rect, .. } | AnnotationItem::Blur { rect, .. } => rect.expand(tol).contains(p),
-            AnnotationItem::Arrow { start, end, stroke_width, .. }
-            | AnnotationItem::DoubleArrow { start, end, stroke_width, .. }
-            | AnnotationItem::Line { start, end, stroke_width, .. } => {
-                dist_to_segment(p, *start, *end) <= stroke_width / 2.0 + tol
+            AnnotationItem::Mosaic { rect, .. } | AnnotationItem::Blur { rect, .. } => {
+                rect.expand(tol).contains(p)
             }
-            AnnotationItem::Pen { points, stroke_width, .. } | AnnotationItem::Polyline { points, stroke_width, .. } => {
-                points.windows(2).any(|w| dist_to_segment(p, w[0], w[1]) <= stroke_width / 2.0 + tol)
+            AnnotationItem::Arrow {
+                start,
+                end,
+                stroke_width,
+                ..
             }
-            AnnotationItem::Highlighter { points, stroke_width, .. } => {
-                points.windows(2).any(|w| dist_to_segment(p, w[0], w[1]) <= stroke_width * 1.5 + tol)
+            | AnnotationItem::DoubleArrow {
+                start,
+                end,
+                stroke_width,
+                ..
             }
-            AnnotationItem::Polygon { points, stroke_width, filled, .. } => {
+            | AnnotationItem::Line {
+                start,
+                end,
+                stroke_width,
+                ..
+            } => dist_to_segment(p, *start, *end) <= stroke_width / 2.0 + tol,
+            AnnotationItem::Pen {
+                points,
+                stroke_width,
+                ..
+            }
+            | AnnotationItem::Polyline {
+                points,
+                stroke_width,
+                ..
+            } => points
+                .windows(2)
+                .any(|w| dist_to_segment(p, w[0], w[1]) <= stroke_width / 2.0 + tol),
+            AnnotationItem::Highlighter {
+                points,
+                stroke_width,
+                ..
+            } => points
+                .windows(2)
+                .any(|w| dist_to_segment(p, w[0], w[1]) <= stroke_width * 1.5 + tol),
+            AnnotationItem::Polygon {
+                points,
+                stroke_width,
+                filled,
+                ..
+            } => {
                 if *filled && point_in_polygon(p, points) {
                     return true;
                 }
                 let n = points.len();
-                (0..n).any(|i| dist_to_segment(p, points[i], points[(i + 1) % n]) <= stroke_width / 2.0 + tol)
+                (0..n).any(|i| {
+                    dist_to_segment(p, points[i], points[(i + 1) % n]) <= stroke_width / 2.0 + tol
+                })
             }
-            AnnotationItem::Text { pos, text, font_size, .. } => {
-                Rect::from_min_size(*pos, text_size_est(text, *font_size)).expand(tol).contains(p)
-            }
+            AnnotationItem::Text {
+                pos,
+                text,
+                font_size,
+                ..
+            } => Rect::from_min_size(*pos, text_size_est(text, *font_size))
+                .expand(tol)
+                .contains(p),
             AnnotationItem::StepBadge { pos, radius, .. } => p.distance(*pos) <= radius + tol,
-            AnnotationItem::Rotated { item, angle, center } => {
+            AnnotationItem::Rotated {
+                item,
+                angle,
+                center,
+            } => {
                 let (sin, cos) = (-angle).sin_cos();
                 item.hit_test(rot_pos(p, *center, sin, cos), tol)
             }
@@ -634,10 +817,19 @@ impl AnnotationItem {
     /// On-screen vertex positions (rotation applied) for vertex editing.
     pub fn editable_vertices(&self) -> Option<Vec<Pos2>> {
         match self {
-            AnnotationItem::Rotated { item, angle, center } => {
+            AnnotationItem::Rotated {
+                item,
+                angle,
+                center,
+            } => {
                 let inner = item.editable_vertices()?;
                 let (sin, cos) = angle.sin_cos();
-                Some(inner.into_iter().map(|p| rot_pos(p, *center, sin, cos)).collect())
+                Some(
+                    inner
+                        .into_iter()
+                        .map(|p| rot_pos(p, *center, sin, cos))
+                        .collect(),
+                )
             }
             _ => self.multi_point_parts().map(|(_, pts, ..)| pts.to_vec()),
         }
@@ -646,7 +838,11 @@ impl AnnotationItem {
     /// Moves vertex `v` to an on-screen position (inverse-rotated when wrapped).
     pub fn move_vertex(&mut self, v: usize, pos: Pos2) {
         match self {
-            AnnotationItem::Rotated { item, angle, center } => {
+            AnnotationItem::Rotated {
+                item,
+                angle,
+                center,
+            } => {
                 let (sin, cos) = (-*angle).sin_cos();
                 item.move_vertex(v, rot_pos(pos, *center, sin, cos));
             }
@@ -686,17 +882,23 @@ impl AnnotationItem {
 
     /// Color, stroke width and fill of a multi-point item (for resuming it).
     pub fn multi_point_style(&self) -> Option<(Color32, f32, bool)> {
-        self.multi_point_parts().map(|(_, _, color, stroke, filled)| (color, stroke, filled))
+        self.multi_point_parts()
+            .map(|(_, _, color, stroke, filled)| (color, stroke, filled))
     }
 
     fn multi_point_parts(&self) -> Option<(ToolType, &[Pos2], Color32, f32, bool)> {
         match self {
-            AnnotationItem::Polyline { points, color, stroke_width } => {
-                Some((ToolType::Polyline, points, *color, *stroke_width, false))
-            }
-            AnnotationItem::Polygon { points, color, stroke_width, filled } => {
-                Some((ToolType::Polygon, points, *color, *stroke_width, *filled))
-            }
+            AnnotationItem::Polyline {
+                points,
+                color,
+                stroke_width,
+            } => Some((ToolType::Polyline, points, *color, *stroke_width, false)),
+            AnnotationItem::Polygon {
+                points,
+                color,
+                stroke_width,
+                filled,
+            } => Some((ToolType::Polygon, points, *color, *stroke_width, *filled)),
             AnnotationItem::Rotated { item, .. } => item.multi_point_parts(),
             _ => None,
         }
@@ -714,7 +916,12 @@ impl AnnotationItem {
                 if *filled {
                     painter.rect_filled(*rect, 0.0, *color);
                 }
-                painter.rect_stroke(*rect, 0.0, Stroke::new(*stroke_width, *color), StrokeKind::Middle);
+                painter.rect_stroke(
+                    *rect,
+                    0.0,
+                    Stroke::new(*stroke_width, *color),
+                    StrokeKind::Middle,
+                );
             }
             AnnotationItem::Ellipse {
                 rect,
@@ -722,7 +929,11 @@ impl AnnotationItem {
                 stroke_width,
                 filled,
             } => {
-                let fill = if *filled { *color } else { Color32::TRANSPARENT };
+                let fill = if *filled {
+                    *color
+                } else {
+                    Color32::TRANSPARENT
+                };
                 painter.add(egui::Shape::Ellipse(egui::epaint::EllipseShape {
                     center: rect.center(),
                     radius: rect.size() / 2.0,
@@ -740,7 +951,12 @@ impl AnnotationItem {
                 if *filled {
                     painter.rect_filled(*rect, r, *color);
                 }
-                painter.rect_stroke(*rect, r, Stroke::new(*stroke_width, *color), StrokeKind::Middle);
+                painter.rect_stroke(
+                    *rect,
+                    r,
+                    Stroke::new(*stroke_width, *color),
+                    StrokeKind::Middle,
+                );
             }
             AnnotationItem::Diamond {
                 rect,
@@ -750,9 +966,16 @@ impl AnnotationItem {
             } => {
                 let pts = diamond_points(*rect);
                 if *filled {
-                    painter.add(egui::Shape::convex_polygon(pts.clone(), *color, Stroke::NONE));
+                    painter.add(egui::Shape::convex_polygon(
+                        pts.clone(),
+                        *color,
+                        Stroke::NONE,
+                    ));
                 }
-                painter.add(egui::Shape::closed_line(pts, Stroke::new(*stroke_width, *color)));
+                painter.add(egui::Shape::closed_line(
+                    pts,
+                    Stroke::new(*stroke_width, *color),
+                ));
             }
             AnnotationItem::Polygon {
                 points,
@@ -760,7 +983,11 @@ impl AnnotationItem {
                 stroke_width,
                 filled,
             } => {
-                let fill = if *filled { *color } else { Color32::TRANSPARENT };
+                let fill = if *filled {
+                    *color
+                } else {
+                    Color32::TRANSPARENT
+                };
                 painter.add(egui::Shape::Path(egui::epaint::PathShape {
                     points: points.clone(),
                     closed: true,
@@ -853,7 +1080,8 @@ impl AnnotationItem {
                     80, // Semi-transparent
                 );
                 for w in points.windows(2) {
-                    painter.line_segment([w[0], w[1]], Stroke::new(*stroke_width * 3.0, semi_color));
+                    painter
+                        .line_segment([w[0], w[1]], Stroke::new(*stroke_width * 3.0, semi_color));
                 }
             }
             AnnotationItem::Mosaic { rect, .. } => {
@@ -917,7 +1145,12 @@ impl AnnotationItem {
                 if *square {
                     let r = Rect::from_center_size(*pos, Vec2::splat(*radius * 2.0));
                     painter.rect_filled(r, radius * 0.3, *color);
-                    painter.rect_stroke(r, radius * 0.3, Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
+                    painter.rect_stroke(
+                        r,
+                        radius * 0.3,
+                        Stroke::new(1.5, Color32::WHITE),
+                        StrokeKind::Inside,
+                    );
                 } else {
                     painter.circle_filled(*pos, *radius, *color);
                     painter.circle_stroke(*pos, *radius, Stroke::new(1.5, Color32::WHITE));
@@ -930,94 +1163,270 @@ impl AnnotationItem {
                     Color32::WHITE,
                 );
             }
-            AnnotationItem::Rotated { item, angle, center } => {
+            AnnotationItem::Rotated {
+                item,
+                angle,
+                center,
+            } => {
                 let (sin, cos) = angle.sin_cos();
                 let rp = |p: Pos2| rot_pos(p, *center, sin, cos);
                 let stroke_of = |sw: f32, c: Color32| Stroke::new(sw, c);
                 match item.as_ref() {
-                    AnnotationItem::Rectangle { rect, color, stroke_width, filled } => {
-                        let pts = vec![rp(rect.left_top()), rp(rect.right_top()), rp(rect.right_bottom()), rp(rect.left_bottom())];
-                        let fill = if *filled { *color } else { Color32::TRANSPARENT };
-                        painter.add(path_shape(pts, true, fill, stroke_of(*stroke_width, *color)));
+                    AnnotationItem::Rectangle {
+                        rect,
+                        color,
+                        stroke_width,
+                        filled,
+                    } => {
+                        let pts = vec![
+                            rp(rect.left_top()),
+                            rp(rect.right_top()),
+                            rp(rect.right_bottom()),
+                            rp(rect.left_bottom()),
+                        ];
+                        let fill = if *filled {
+                            *color
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            fill,
+                            stroke_of(*stroke_width, *color),
+                        ));
                     }
-                    AnnotationItem::RoundedRect { rect, color, stroke_width, filled } => {
-                        let pts = rounded_rect_points(*rect, corner_radius(*rect)).into_iter().map(rp).collect();
-                        let fill = if *filled { *color } else { Color32::TRANSPARENT };
-                        painter.add(path_shape(pts, true, fill, stroke_of(*stroke_width, *color)));
+                    AnnotationItem::RoundedRect {
+                        rect,
+                        color,
+                        stroke_width,
+                        filled,
+                    } => {
+                        let pts = rounded_rect_points(*rect, corner_radius(*rect))
+                            .into_iter()
+                            .map(rp)
+                            .collect();
+                        let fill = if *filled {
+                            *color
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            fill,
+                            stroke_of(*stroke_width, *color),
+                        ));
                     }
-                    AnnotationItem::Ellipse { rect, color, stroke_width, filled } => {
+                    AnnotationItem::Ellipse {
+                        rect,
+                        color,
+                        stroke_width,
+                        filled,
+                    } => {
                         let pts = ellipse_points(*rect).into_iter().map(rp).collect();
-                        let fill = if *filled { *color } else { Color32::TRANSPARENT };
-                        painter.add(path_shape(pts, true, fill, stroke_of(*stroke_width, *color)));
+                        let fill = if *filled {
+                            *color
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            fill,
+                            stroke_of(*stroke_width, *color),
+                        ));
                     }
-                    AnnotationItem::Diamond { rect, color, stroke_width, filled } => {
+                    AnnotationItem::Diamond {
+                        rect,
+                        color,
+                        stroke_width,
+                        filled,
+                    } => {
                         let pts: Vec<Pos2> = diamond_points(*rect).into_iter().map(rp).collect();
-                        let fill = if *filled { *color } else { Color32::TRANSPARENT };
-                        painter.add(path_shape(pts, true, fill, stroke_of(*stroke_width, *color)));
+                        let fill = if *filled {
+                            *color
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            fill,
+                            stroke_of(*stroke_width, *color),
+                        ));
                     }
-                    AnnotationItem::Polygon { points, color, stroke_width, filled } => {
+                    AnnotationItem::Polygon {
+                        points,
+                        color,
+                        stroke_width,
+                        filled,
+                    } => {
                         let pts = points.iter().map(|p| rp(*p)).collect();
-                        let fill = if *filled { *color } else { Color32::TRANSPARENT };
-                        painter.add(path_shape(pts, true, fill, stroke_of(*stroke_width, *color)));
+                        let fill = if *filled {
+                            *color
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            fill,
+                            stroke_of(*stroke_width, *color),
+                        ));
                     }
-                    AnnotationItem::Line { start, end, color, stroke_width } => {
-                        painter.line_segment([rp(*start), rp(*end)], stroke_of(*stroke_width, *color));
+                    AnnotationItem::Line {
+                        start,
+                        end,
+                        color,
+                        stroke_width,
+                    } => {
+                        painter
+                            .line_segment([rp(*start), rp(*end)], stroke_of(*stroke_width, *color));
                     }
-                    AnnotationItem::Arrow { start, end, color, stroke_width } => {
+                    AnnotationItem::Arrow {
+                        start,
+                        end,
+                        color,
+                        stroke_width,
+                    } => {
                         let (s, e) = (rp(*start), rp(*end));
                         painter.line_segment([s, e], stroke_of(*stroke_width, *color));
                         arrow_head(painter, s, e, *stroke_width, *color);
                     }
-                    AnnotationItem::DoubleArrow { start, end, color, stroke_width } => {
+                    AnnotationItem::DoubleArrow {
+                        start,
+                        end,
+                        color,
+                        stroke_width,
+                    } => {
                         let (s, e) = (rp(*start), rp(*end));
                         painter.line_segment([s, e], stroke_of(*stroke_width, *color));
                         arrow_head(painter, s, e, *stroke_width, *color);
                         arrow_head(painter, e, s, *stroke_width, *color);
                     }
-                    AnnotationItem::Polyline { points, color, stroke_width } => {
+                    AnnotationItem::Polyline {
+                        points,
+                        color,
+                        stroke_width,
+                    } => {
                         let pts = points.iter().map(|p| rp(*p)).collect();
-                        painter.add(path_shape(pts, false, Color32::TRANSPARENT, stroke_of(*stroke_width, *color)));
+                        painter.add(path_shape(
+                            pts,
+                            false,
+                            Color32::TRANSPARENT,
+                            stroke_of(*stroke_width, *color),
+                        ));
                     }
-                    AnnotationItem::Pen { points, color, stroke_width } => {
+                    AnnotationItem::Pen {
+                        points,
+                        color,
+                        stroke_width,
+                    } => {
                         for w in points.windows(2) {
-                            painter.line_segment([rp(w[0]), rp(w[1])], stroke_of(*stroke_width, *color));
+                            painter.line_segment(
+                                [rp(w[0]), rp(w[1])],
+                                stroke_of(*stroke_width, *color),
+                            );
                         }
                     }
-                    AnnotationItem::Highlighter { points, color, stroke_width } => {
-                        let semi = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 80);
+                    AnnotationItem::Highlighter {
+                        points,
+                        color,
+                        stroke_width,
+                    } => {
+                        let semi =
+                            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 80);
                         for w in points.windows(2) {
-                            painter.line_segment([rp(w[0]), rp(w[1])], stroke_of(*stroke_width * 3.0, semi));
+                            painter.line_segment(
+                                [rp(w[0]), rp(w[1])],
+                                stroke_of(*stroke_width * 3.0, semi),
+                            );
                         }
                     }
                     AnnotationItem::Mosaic { rect, .. } => {
-                        let pts = vec![rp(rect.left_top()), rp(rect.right_top()), rp(rect.right_bottom()), rp(rect.left_bottom())];
-                        painter.add(path_shape(pts, true, Color32::TRANSPARENT, stroke_of(1.0, Color32::from_rgba_unmultiplied(100, 100, 255, 180))));
+                        let pts = vec![
+                            rp(rect.left_top()),
+                            rp(rect.right_top()),
+                            rp(rect.right_bottom()),
+                            rp(rect.left_bottom()),
+                        ];
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            Color32::TRANSPARENT,
+                            stroke_of(1.0, Color32::from_rgba_unmultiplied(100, 100, 255, 180)),
+                        ));
                     }
                     AnnotationItem::Blur { rect, .. } => {
-                        let pts = vec![rp(rect.left_top()), rp(rect.right_top()), rp(rect.right_bottom()), rp(rect.left_bottom())];
-                        painter.add(path_shape(pts, true, Color32::from_white_alpha(36), stroke_of(1.0, Color32::from_white_alpha(140))));
+                        let pts = vec![
+                            rp(rect.left_top()),
+                            rp(rect.right_top()),
+                            rp(rect.right_bottom()),
+                            rp(rect.left_bottom()),
+                        ];
+                        painter.add(path_shape(
+                            pts,
+                            true,
+                            Color32::from_white_alpha(36),
+                            stroke_of(1.0, Color32::from_white_alpha(140)),
+                        ));
                     }
-                    AnnotationItem::Text { text, color, font_size, .. } => {
-                        let galley = painter.layout_no_wrap(text.clone(), FontId::new(*font_size, FontFamily::Proportional), *color);
+                    AnnotationItem::Text {
+                        text,
+                        color,
+                        font_size,
+                        ..
+                    } => {
+                        let galley = painter.layout_no_wrap(
+                            text.clone(),
+                            FontId::new(*font_size, FontFamily::Proportional),
+                            *color,
+                        );
                         // Pivot is the galley's top-left; place it so the rotated center lands on `center`.
                         let pos = rp(*center - galley.size() / 2.0);
-                        painter.add(egui::epaint::TextShape::new(pos, galley, *color).with_angle(*angle));
+                        painter.add(
+                            egui::epaint::TextShape::new(pos, galley, *color).with_angle(*angle),
+                        );
                     }
-                    AnnotationItem::StepBadge { pos, number, color, radius, square } => {
+                    AnnotationItem::StepBadge {
+                        pos,
+                        number,
+                        color,
+                        radius,
+                        square,
+                    } => {
                         let c = rp(*pos);
                         if *square {
                             let r = Rect::from_center_size(*pos, Vec2::splat(*radius * 2.0));
-                            let pts = rounded_rect_points(r, radius * 0.3).into_iter().map(rp).collect();
-                            painter.add(path_shape(pts, true, *color, stroke_of(1.5, Color32::WHITE)));
+                            let pts = rounded_rect_points(r, radius * 0.3)
+                                .into_iter()
+                                .map(rp)
+                                .collect();
+                            painter.add(path_shape(
+                                pts,
+                                true,
+                                *color,
+                                stroke_of(1.5, Color32::WHITE),
+                            ));
                         } else {
                             painter.circle_filled(c, *radius, *color);
                             painter.circle_stroke(c, *radius, stroke_of(1.5, Color32::WHITE));
                         }
-                        let galley = painter.layout_no_wrap(number.to_string(), FontId::new(*radius * 1.1, FontFamily::Proportional), Color32::WHITE);
+                        let galley = painter.layout_no_wrap(
+                            number.to_string(),
+                            FontId::new(*radius * 1.1, FontFamily::Proportional),
+                            Color32::WHITE,
+                        );
                         let tpos = rp(*pos - galley.size() / 2.0);
-                        painter.add(egui::epaint::TextShape::new(tpos, galley, Color32::WHITE).with_angle(*angle));
+                        painter.add(
+                            egui::epaint::TextShape::new(tpos, galley, Color32::WHITE)
+                                .with_angle(*angle),
+                        );
                     }
-                    AnnotationItem::Rotated { .. } => unreachable!("rotation wrappers are never nested"),
+                    AnnotationItem::Rotated { .. } => {
+                        unreachable!("rotation wrappers are never nested")
+                    }
                 }
             }
         }
@@ -1066,7 +1475,16 @@ impl AnnotationItem {
                 let rx = ((rect.width() / 2.0) * scale_factor).round().abs() as i32;
                 let ry = ((rect.height() / 2.0) * scale_factor).round().abs() as i32;
                 let thickness = (*stroke_width * scale_factor).round().max(1.0) as u32;
-                ImageProcessor::draw_ellipse(img, cx, cy, rx, ry, thickness, to_rgba(*color), *filled);
+                ImageProcessor::draw_ellipse(
+                    img,
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    thickness,
+                    to_rgba(*color),
+                    *filled,
+                );
             }
             AnnotationItem::RoundedRect {
                 rect,
@@ -1098,7 +1516,8 @@ impl AnnotationItem {
                 stroke_width,
                 filled,
             } => {
-                let pts: Vec<(i32, i32)> = diamond_points(*rect).iter().map(|p| to_phys(*p)).collect();
+                let pts: Vec<(i32, i32)> =
+                    diamond_points(*rect).iter().map(|p| to_phys(*p)).collect();
                 let thickness = (*stroke_width * scale_factor).round().max(1.0) as u32;
                 ImageProcessor::draw_polygon(img, &pts, thickness, to_rgba(*color), *filled, true);
             }
@@ -1164,7 +1583,15 @@ impl AnnotationItem {
                 for w in points.windows(2) {
                     let (x0, y0) = to_phys(w[0]);
                     let (x1, y1) = to_phys(w[1]);
-                    ImageProcessor::draw_thick_line(img, x0, y0, x1, y1, thickness, to_rgba(*color));
+                    ImageProcessor::draw_thick_line(
+                        img,
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        thickness,
+                        to_rgba(*color),
+                    );
                 }
             }
             AnnotationItem::Highlighter {
@@ -1220,7 +1647,14 @@ impl AnnotationItem {
                 let (cx, cy) = to_phys(*pos);
                 let phys_r = (*radius * scale_factor).round().max(4.0) as i32;
                 if *square {
-                    ImageProcessor::draw_step_badge_square(img, cx, cy, phys_r, *number, to_rgba(*color));
+                    ImageProcessor::draw_step_badge_square(
+                        img,
+                        cx,
+                        cy,
+                        phys_r,
+                        *number,
+                        to_rgba(*color),
+                    );
                 } else {
                     ImageProcessor::draw_step_badge(img, cx, cy, phys_r, *number, to_rgba(*color));
                 }
@@ -1232,9 +1666,20 @@ impl AnnotationItem {
                 font_size,
             } => {
                 let (x, y) = to_phys(*pos);
-                ImageProcessor::draw_text(img, x, y, text, *font_size * scale_factor, to_rgba(*color));
+                ImageProcessor::draw_text(
+                    img,
+                    x,
+                    y,
+                    text,
+                    *font_size * scale_factor,
+                    to_rgba(*color),
+                );
             }
-            AnnotationItem::Rotated { item, angle, center } => {
+            AnnotationItem::Rotated {
+                item,
+                angle,
+                center,
+            } => {
                 // Mosaic/blur are pixel effects on the underlying image; apply them
                 // over the rotated axis-aligned extent instead of blitting transparency.
                 match item.as_ref() {
@@ -1242,7 +1687,8 @@ impl AnnotationItem {
                         let b = self.bounds();
                         let (x0, y0) = to_phys(b.min);
                         let (x1, y1) = to_phys(b.max);
-                        let phys_block = (*block_size as f32 * scale_factor).round().max(4.0) as u32;
+                        let phys_block =
+                            (*block_size as f32 * scale_factor).round().max(4.0) as u32;
                         ImageProcessor::apply_mosaic(
                             img,
                             x0.max(0) as u32,
@@ -1288,7 +1734,12 @@ impl AnnotationItem {
                 let mut min_y = f32::MAX;
                 let mut max_x = f32::MIN;
                 let mut max_y = f32::MIN;
-                for (px, py) in [(0.0, 0.0), (tw as f32, 0.0), (0.0, th as f32), (tw as f32, th as f32)] {
+                for (px, py) in [
+                    (0.0, 0.0),
+                    (tw as f32, 0.0),
+                    (0.0, th as f32),
+                    (tw as f32, th as f32),
+                ] {
                     let rx = ox + cx + cos * (px - cx) - sin * (py - cy);
                     let ry = oy + cy + sin * (px - cx) + cos * (py - cy);
                     min_x = min_x.min(rx);
@@ -1307,7 +1758,9 @@ impl AnnotationItem {
                         let ly = dy as f32 + 0.5 - oy;
                         let sx = cx + cos * (lx - cx) + sin * (ly - cy) - 0.5;
                         let sy = cy - sin * (lx - cx) + cos * (ly - cy) - 0.5;
-                        let Some(s) = sample_premul(&tmp, sx, sy) else { continue };
+                        let Some(s) = sample_premul(&tmp, sx, sy) else {
+                            continue;
+                        };
                         let ia = 1.0 - s[3] / 255.0;
                         let d = img.get_pixel_mut(dx, dy);
                         for c in 0..4 {
@@ -1529,7 +1982,10 @@ mod tests {
             radius: 3,
         };
         item.bake_to_image(&mut img, Pos2::ZERO, 1.0);
-        assert!(img.get_pixel(14, 15)[0] > 0, "blur should spread the bright pixel");
+        assert!(
+            img.get_pixel(14, 15)[0] > 0,
+            "blur should spread the bright pixel"
+        );
     }
 
     #[test]
@@ -1543,14 +1999,21 @@ mod tests {
         };
         item.bake_to_image(&mut img, Pos2::ZERO, 1.0);
         let ink = img.pixels().filter(|p| p[0] > 100 && p[3] > 100).count();
-        assert!(ink > 100, "text should rasterize visible glyphs, got {ink} ink pixels");
+        assert!(
+            ink > 100,
+            "text should rasterize visible glyphs, got {ink} ink pixels"
+        );
     }
 
     #[test]
     fn test_polygon_fill_covers_interior() {
         let mut img = RgbaImage::new(40, 40);
         let item = AnnotationItem::Polygon {
-            points: vec![Pos2::new(5.0, 5.0), Pos2::new(35.0, 5.0), Pos2::new(20.0, 35.0)],
+            points: vec![
+                Pos2::new(5.0, 5.0),
+                Pos2::new(35.0, 5.0),
+                Pos2::new(20.0, 35.0),
+            ],
             color: Color32::from_rgb(255, 0, 0),
             stroke_width: 2.0,
             filled: true,
@@ -1569,22 +2032,46 @@ mod tests {
             filled: false,
         };
         item.bake_to_image(&mut img, Pos2::ZERO, 1.0);
-        assert_eq!(img.get_pixel(20, 5), &Rgba([255, 0, 0, 255]), "top edge painted");
-        assert_ne!(img.get_pixel(6, 6), &Rgba([255, 0, 0, 255]), "corner rounded away");
-        assert_ne!(img.get_pixel(20, 20), &Rgba([255, 0, 0, 255]), "outline only");
+        assert_eq!(
+            img.get_pixel(20, 5),
+            &Rgba([255, 0, 0, 255]),
+            "top edge painted"
+        );
+        assert_ne!(
+            img.get_pixel(6, 6),
+            &Rgba([255, 0, 0, 255]),
+            "corner rounded away"
+        );
+        assert_ne!(
+            img.get_pixel(20, 20),
+            &Rgba([255, 0, 0, 255]),
+            "outline only"
+        );
     }
 
     #[test]
     fn test_polyline_bake_is_open() {
         let mut img = RgbaImage::new(40, 40);
         let item = AnnotationItem::Polyline {
-            points: vec![Pos2::new(5.0, 5.0), Pos2::new(20.0, 20.0), Pos2::new(35.0, 5.0)],
+            points: vec![
+                Pos2::new(5.0, 5.0),
+                Pos2::new(20.0, 20.0),
+                Pos2::new(35.0, 5.0),
+            ],
             color: Color32::from_rgb(255, 0, 0),
             stroke_width: 2.0,
         };
         item.bake_to_image(&mut img, Pos2::ZERO, 1.0);
-        assert_eq!(img.get_pixel(20, 20), &Rgba([255, 0, 0, 255]), "vertex painted");
-        assert_ne!(img.get_pixel(20, 5), &Rgba([255, 0, 0, 255]), "no closing edge");
+        assert_eq!(
+            img.get_pixel(20, 20),
+            &Rgba([255, 0, 0, 255]),
+            "vertex painted"
+        );
+        assert_ne!(
+            img.get_pixel(20, 5),
+            &Rgba([255, 0, 0, 255]),
+            "no closing edge"
+        );
     }
 
     #[test]
@@ -1615,7 +2102,11 @@ mod tests {
         item.bake_to_image(&mut img, Pos2::ZERO, 1.0);
         // (12,12) lies outside the circle's radius but inside the square fill,
         // clear of the 2px white border that hugs the edges.
-        assert_eq!(img.get_pixel(12, 12), &Rgba([255, 0, 0, 255]), "square badge fills corner");
+        assert_eq!(
+            img.get_pixel(12, 12),
+            &Rgba([255, 0, 0, 255]),
+            "square badge fills corner"
+        );
     }
 
     fn rotated_rect() -> AnnotationItem {
@@ -1643,8 +2134,14 @@ mod tests {
     #[test]
     fn rotated_hit_test_follows_the_shape() {
         let item = rotated_rect();
-        assert!(item.hit_test(Pos2::new(20.0, 3.0), 1.0), "inside rotated bar");
-        assert!(!item.hit_test(Pos2::new(12.0, 10.0), 1.0), "original footprint is now empty");
+        assert!(
+            item.hit_test(Pos2::new(20.0, 3.0), 1.0),
+            "inside rotated bar"
+        );
+        assert!(
+            !item.hit_test(Pos2::new(12.0, 10.0), 1.0),
+            "original footprint is now empty"
+        );
         assert_eq!(item.rotation(), std::f32::consts::FRAC_PI_2);
     }
 
@@ -1652,7 +2149,9 @@ mod tests {
     fn translate_moves_rotated_item_and_pivot() {
         let mut item = rotated_rect();
         item.translate(Vec2::new(5.0, -3.0));
-        let AnnotationItem::Rotated { center, .. } = &item else { panic!() };
+        let AnnotationItem::Rotated { center, .. } = &item else {
+            panic!()
+        };
         assert_eq!(*center, Pos2::new(25.0, 7.0));
         assert!(item.hit_test(Pos2::new(25.0, 0.0), 1.0));
     }
@@ -1664,7 +2163,11 @@ mod tests {
         let red = Rgba([255, 0, 0, 255]);
         assert_eq!(img.get_pixel(20, 10), &red, "center stays painted");
         assert_eq!(img.get_pixel(20, 3), &red, "vertical bar after 90 deg turn");
-        assert_ne!(img.get_pixel(12, 10), &red, "old horizontal footprint cleared");
+        assert_ne!(
+            img.get_pixel(12, 10),
+            &red,
+            "old horizontal footprint cleared"
+        );
         assert_ne!(img.get_pixel(28, 10), &red);
     }
 
@@ -1689,20 +2192,34 @@ mod tests {
     #[test]
     fn polygon_hit_test_edges_and_fill() {
         let outline = AnnotationItem::Polygon {
-            points: vec![Pos2::new(0.0, 0.0), Pos2::new(40.0, 0.0), Pos2::new(20.0, 40.0)],
+            points: vec![
+                Pos2::new(0.0, 0.0),
+                Pos2::new(40.0, 0.0),
+                Pos2::new(20.0, 40.0),
+            ],
             color: Color32::RED,
             stroke_width: 2.0,
             filled: false,
         };
         assert!(outline.hit_test(Pos2::new(20.0, 0.0), 2.0), "top edge");
-        assert!(!outline.hit_test(Pos2::new(20.0, 15.0), 2.0), "hollow interior");
+        assert!(
+            !outline.hit_test(Pos2::new(20.0, 15.0), 2.0),
+            "hollow interior"
+        );
         let filled = AnnotationItem::Polygon {
-            points: vec![Pos2::new(0.0, 0.0), Pos2::new(40.0, 0.0), Pos2::new(20.0, 40.0)],
+            points: vec![
+                Pos2::new(0.0, 0.0),
+                Pos2::new(40.0, 0.0),
+                Pos2::new(20.0, 40.0),
+            ],
             color: Color32::RED,
             stroke_width: 2.0,
             filled: true,
         };
-        assert!(filled.hit_test(Pos2::new(20.0, 15.0), 2.0), "filled interior");
+        assert!(
+            filled.hit_test(Pos2::new(20.0, 15.0), 2.0),
+            "filled interior"
+        );
     }
 
     #[test]
@@ -1735,7 +2252,11 @@ mod tests {
     #[test]
     fn polyline_vertex_move_and_remove_respect_minimum() {
         let mut item = AnnotationItem::Polyline {
-            points: vec![Pos2::new(0.0, 0.0), Pos2::new(10.0, 0.0), Pos2::new(20.0, 0.0)],
+            points: vec![
+                Pos2::new(0.0, 0.0),
+                Pos2::new(10.0, 0.0),
+                Pos2::new(20.0, 0.0),
+            ],
             color: Color32::RED,
             stroke_width: 4.0,
         };
@@ -1744,20 +2265,30 @@ mod tests {
         item.move_vertex(1, Pos2::new(10.0, 5.0));
         assert_eq!(item.editable_vertices().unwrap()[1], Pos2::new(10.0, 5.0));
         assert!(item.remove_vertex(2), "3 -> 2 vertices allowed");
-        assert!(!item.remove_vertex(0), "a polyline keeps at least 2 vertices");
+        assert!(
+            !item.remove_vertex(0),
+            "a polyline keeps at least 2 vertices"
+        );
         assert_eq!(item.editable_vertices().unwrap().len(), 2);
     }
 
     #[test]
     fn polygon_keeps_at_least_three_vertices() {
         let mut item = AnnotationItem::Polygon {
-            points: vec![Pos2::new(0.0, 0.0), Pos2::new(10.0, 0.0), Pos2::new(5.0, 10.0)],
+            points: vec![
+                Pos2::new(0.0, 0.0),
+                Pos2::new(10.0, 0.0),
+                Pos2::new(5.0, 10.0),
+            ],
             color: Color32::RED,
             stroke_width: 4.0,
             filled: true,
         };
         assert_eq!(item.multi_point_kind(), Some(ToolType::Polygon));
-        assert!(!item.remove_vertex(0), "a polygon keeps at least 3 vertices");
+        assert!(
+            !item.remove_vertex(0),
+            "a polygon keeps at least 3 vertices"
+        );
         assert_eq!(item.editable_vertices().unwrap().len(), 3);
     }
 
@@ -1774,7 +2305,10 @@ mod tests {
             center: Pos2::ZERO,
         };
         let verts = item.editable_vertices().unwrap();
-        assert!(verts[1].distance(Pos2::new(0.0, 10.0)) < 1e-3, "90 deg turns (10,0) into (0,10)");
+        assert!(
+            verts[1].distance(Pos2::new(0.0, 10.0)) < 1e-3,
+            "90 deg turns (10,0) into (0,10)"
+        );
         // Dragging the on-screen vertex back out inverse-rotates into local space.
         item.move_vertex(1, Pos2::new(0.0, 20.0));
         let verts = item.editable_vertices().unwrap();
@@ -1801,13 +2335,19 @@ mod tests {
         };
         assert!(history.replace(0, replacement));
         assert_eq!(history.len(), 1);
-        assert!(matches!(history.items()[0], AnnotationItem::Polyline { .. }));
+        assert!(matches!(
+            history.items()[0],
+            AnnotationItem::Polyline { .. }
+        ));
         assert!(!history.can_redo(), "replace clears the redo branch");
-        assert!(!history.replace(9, AnnotationItem::Line {
-            start: Pos2::ZERO,
-            end: Pos2::new(1.0, 1.0),
-            color: Color32::RED,
-            stroke_width: 2.0,
-        }));
+        assert!(!history.replace(
+            9,
+            AnnotationItem::Line {
+                start: Pos2::ZERO,
+                end: Pos2::new(1.0, 1.0),
+                color: Color32::RED,
+                stroke_width: 2.0,
+            }
+        ));
     }
 }
